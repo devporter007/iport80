@@ -1,6 +1,7 @@
 #include <bits/stdc++.h> // not recommended but for ease im using it for now.
 using namespace std;
 // aims to replicate arch design of 8085 with some changes
+// memory specifications: 64kx16 RAM;
 // 16 bit registers.
 // This design will follow the modular approach where each component is complete in itself.
 // converts hex to int;
@@ -13,7 +14,7 @@ class eightfive{
     private:
         bitset<16> W,Z;
     public:
-        bitset<8> flags; // S Z x AC x P x Cy
+        bitset<8> flags; // S(7) Z(6) x(5) AC(4) x(3) P(2) x(1) Cy(0)
         stack<bitset<16>> mainstack;
         bitset<16> programCounter;
         eightfive(){
@@ -40,7 +41,7 @@ class eightfive{
                 /*  Carry flag (CY):
                     The carry flag is set to 1 if the addition result exceeds 16 bits. This indicates that a carry occurred from the most significant bit.
                     Result truncation:
-                    This processor can only store 16 bits in a register, so the result is truncated to 16 bits. Only the least significant 8 bits of the result are kept, while the 17th bit (the carry) is discarded after setting the carry flag.
+                    This processor can only store 16 bits in a register, so the result is truncated to 16 bits. Only the least significant 16 bits of the result are kept, while the 17th bit (the carry) is discarded after setting the carry flag.
                     Auxiliary Carry flag (AC):
                     This flag is set if there's a carry from bit 7 to bit 8 during the addition operation.
                     Sign flag (S):
@@ -53,11 +54,24 @@ class eightfive{
                     if (A[i] == 0b0 && input[i] == 0b0 && (flags[0] == 0b0)) {A[i] = 0b0;flags[0] = 0b0;}
                     else if (A[i] == 0b0 && input[i] == 0b0 && (flags[0] == 0b1)) {A[i] = 0b1;flags[0] = 0b0;}
                     else if ((A[i] == 0b0 && input[i] == 0b1 || A[i] == 0b1 && input[i] == 0b0) && (flags[0] == 0b0)) {A[i] = 0b1;flags[0] = 0b0;}
-                    else if ((A[i] == 0b0 && input[i] == 0b1 || A[i] == 0b1 && input[i] == 0b0) && (flags[0] == 0b1)) {flags[0] = 0b1; A[i] = 0b0;}
-                    else if (A[i] == 0b1 && input[i] == 0b1 && flags[0] == 0b0){A[i] = 0b0;flags[0] = 0b1;}
-                    else if (A[i] == 0b1 && input[i] == 0b1 && flags[0] == 0b1){A[i] = 0b1;flags[0] = 0b1;}
+                    else if ((A[i] == 0b0 && input[i] == 0b1 || A[i] == 0b1 && input[i] == 0b0) && (flags[0] == 0b1)) {A[i] = 0b0;flags[0] = 0b1; if (i == 7) flags[4] = 0b1;}
+                    else if (A[i] == 0b1 && input[i] == 0b1 && flags[0] == 0b0){A[i] = 0b0;flags[0] = 0b1;if (i == 7) flags[4] = 0b1;}
+                    else if (A[i] == 0b1 && input[i] == 0b1 && flags[0] == 0b1){A[i] = 0b1;flags[0] = 0b1;if (i == 7) flags[4] = 0b1;}
+                    if (i==15 && A[15]==0b1) flags[7] = 0b1;
+                    else if (i==15 && A[15] == 0b0) flags[7] = 0b0;
+                    if (i==15 && A == 0b0000000000000000) flags[6] = 0b1;
+                    else flags[6] = 0b0;
+                    if (i==15){
+                        bitset<16> store(0b0000000000000000);
+                        for (int j=0; j<16; j++){
+                            store[0]^A[j];
+                        }
+                        if (store == 0b0000000000000001) flags[2] = 0b0;
+                        else flags[2] = 0b1;
+                    }
                 }
             }
+
             else if (controller == 0b00000001){//1
 
             }
@@ -75,6 +89,14 @@ class eightfive{
 };
 
 int main() {
-
+    eightfive a;
+    a.A = 0x8000;
+    a.ALU(0x8000,0b00000000);
+    cout << a.A << endl;
+    for (int i=7; i>=0; i--){
+        cout << a.flags[i] << " " ;
+    }
+    cout << endl;
+    cout << "S(7) Z(6) x(5) AC(4) x(3) P(2) x(1) Cy(0)";
     return 0;
 }
