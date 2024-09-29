@@ -21,21 +21,11 @@ class eightfive{
             A = B = C = D = H = L = 0;
             programCounter = 0;
         } // constructor
-        // This ALU is capable of performing the following things:
-        // Addition, Substraction, Multiplication, Division, PoW.
-        // controller is specifically mentioned here instead of OPCODE, the OPCODE will be specified based on registered used.
-        // Self defined controller codes for the following instructions:
         // Addition:
         // ADD/ADI (0)
         // ADC/ACI (1)
         // Substraction:
         // SUB/SUI (2)
-        // Multiplication
-        // MULXP (3)
-        // Division
-        // DIVXP (4)
-        // PoW
-        // POWXP (5)
         void parity(){
             bitset<16> store(0b0000000000000000);
             for (int j=0; j<16; j++){
@@ -47,16 +37,6 @@ class eightfive{
         void ALU(bitset<16> input, bitset<8> controller){// ALU ONLY TAKES VALUES AS INPUTS, ONLY VALUES.
             if (controller == 0b00000000 || controller == 0b00000001){ //0 or 1
                 bitset<1> cin = (controller == 0b00000001) ? flags[0] : 0;
-                // Carry flag (CY):
-                // The carry flag is set to 1 if the addition result exceeds 16 bits.
-                // Auxiliary Carry flag (AC):
-                // This flag is set if there's a carry from bit 7 to bit 8 during the addition operation.
-                // Sign flag (S):
-                // If bit 15 is 1, the S flag is set; otherwise, it's reset.
-                // Zero flag (Z):
-                // The zero flag is set if the 16-bit result after truncation is zero; otherwise, it's reset.
-                // Parity flag (P):
-                // The parity flag is set based on the parity (even or odd) of the number of 1s in the 16-bit result.
                 for (int i = 0; i <= 15; i++) {
                     if (A[i] == 0b0 && input[i] == 0b0 && (flags[0] == 0b0)) {
                         A[i] = 0b0;
@@ -97,23 +77,11 @@ class eightfive{
             }
 
             else if (controller == 0b00000011){//3 SUB/SUI
-                /*
-                    Sign (S): Set if the result is negative (bit 15 is 1), reset otherwise
-                    Zero (Z): Set if the result is zero, reset otherwise
-                    Auxiliary Carry (AC): Set if there's a borrow from bit 7 to bit 8, reset otherwise
-                    Parity (P): Set if the result has even parity, reset if odd
-                    Carry (CY): Set if there's a borrow, reset otherwise
-                 */
                 // to substract stuff which is A = A - INPUT here, we take the 2s complement of INPUT and then perform ADD.
                 input.flip();
                 input = bitset<16>(input.to_ulong() + 1);
                 ALU(input,0b00000000);
             }
-            else if (controller == 0b00000100){//4 MULXP , Multiplies A * Input then stores A
-                // multiplication is basically summing up thing to a particular number of times.
-
-            }
-
         };
 };
 void printResult(eightfive &cpu) {
