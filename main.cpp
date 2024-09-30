@@ -1,12 +1,15 @@
 #include <bits/stdc++.h> // not recommended but for ease im using it for now.
 using namespace std;
-// aims to replicate arch design of 8085 with some changes
+// aims to replicate arch design of 8085 exactly.
 // memory specifications: 64k RAM+ROM(8bit);
 // 8 bit registers.
 // This design will follow the modular approach where each component is complete in itself.
-// converts hex to int;
-// Custom instructions are succeded with XP tag, eg: DIVXP, MULXP;
 // 8 bit opcode as standard in 8085
+
+
+// TODO:
+// 1. Implement a function that parses text file and processes the instruction set appropritately.
+
 
 class mem {
 public:
@@ -24,21 +27,107 @@ public:
         return memory[address.to_ulong()];
     }
 };
-
 class eightfive{
     private:
         bitset<8> W,Z;
         mem memory;
     public:
-        bitset<8> A,B,C,D,H,L;
+        bitset<8> A,B,C,D,E,H,L,M;
         eightfive(){
-            A = B = C = D = H = L = 0;
+            A = B = C = D = E = H = L = 0;
             programCounter = 0;
         }
+        bitset<8> loadM(){
+            bitset<16> address = (static_cast<unsigned long long>(H.to_ulong()) << 8) | L.to_ulong();
+            M = memory.read(address);
+            return M;
+        }
+
         bitset<8> flags; // S(7) Z(6) x(5) AC(4) x(3) P(2) x(1) Cy(0)
+        // PC and MS are implemented as 16 bit bitset which deviates from the accurate representation of how
+        // things works in 8085 internally, they are implemented as a register pair and used thereof like that.
+        // To ease of things a bit we are instead going for a direct 16 bit approach, it should not affect the
+        // actual results from this emulated processor.
         stack<bitset<16>> mainstack;
         bitset<16> programCounter;
 
+    private:
+    unordered_map<bitset<8>, function<void()>> optable = {
+            // Handles all cases of MOV r,r;(49 cases)
+            {0b01111111, [](){}},
+            {0b01111000, [this](){ A = B; }},
+            {0b01111001, [this](){ A = C; }},
+            {0b01111010, [this](){ A = D; }},
+            {0b01111011, [this](){ A = E; }},
+            {0b01111100, [this](){ A = H; }},
+            {0b01111101, [this](){ A = L; }},
+            {0b01000111, [this](){ B = A; }},
+            {0b01000000, [this](){}},
+            {0b01000001, [this](){ B = C;}},
+            {0b01000010, [this](){ B = D;}},
+            {0b01000011, [this](){ B = E;}},
+            {0b01000100, [this](){ B = H;}},
+            {0b01000101, [this](){ B = L;}},
+            {0b01001111, [this](){ C = A;}},
+            {0b01001000, [this](){ C = B;}},
+            {0b01001000, [this](){ C = B;}},
+            {0b01001001, [this](){}},
+            {0b01001010, [this](){ C = D;}},
+            {0b01001011, [this](){ C = E;}},
+            {0b01001100, [this](){ C = H;}},
+            {0b01001101, [this](){ C = L;}},
+            {0b01010111, [this](){ D = A;}},
+            {0b01010000, [this](){ D = B;}},
+            {0b01010001, [this](){ D = C;}},
+            {0b01010010, [this](){}},
+            {0b01010011, [this](){ D = E;}},
+            {0b01010100, [this](){ D = H;}},
+            {0b01010101, [this](){ D = L;}},
+            {0b01011111, [this](){ E = A;}},
+            {0b01011000, [this](){ E = B;}},
+            {0b01011001, [this](){ E = C;}},
+            {0b01011010, [this](){ E = D;}},
+            {0b01011011, [this](){}},
+            {0b01011100, [this](){ E = H;}},
+            {0b01011101, [this](){ E = L;}},
+            {0b01100111, [this](){ H = A;}},
+            {0b01100000, [this](){ H = B;}},
+            {0b01100001, [this](){ H = C;}},
+            {0b01100010, [this](){ H = D;}},
+            {0b01100011, [this](){ H = E;}},
+            {0b01100100, [this](){}},
+            {0b01100101, [this](){ H = L;}},
+            {0b01101111, [this](){ L = A;}},
+            {0b01101000, [this](){ L = B;}},
+            {0b01101001, [this](){ L = C;}},
+            {0b01101010, [this](){ L = D;}},
+            {0b01101011, [this](){ L = E;}},
+            {0b01101100, [this](){ L = H;}},
+            {0b01101101, [this](){ }},
+
+            // Handles cases of MOV r,M (7 cases)
+            {0b01111110, [this](){A = loadM();}},
+            {0b01000110, [this](){B = loadM();}},
+            {0b01001110, [this](){C = loadM();}},
+            {0b01010110, [this](){D = loadM();}},
+            {0b01011110, [this](){E = loadM();}},
+            {0b01100110, [this](){H = loadM();}},
+            {0b01101110, [this](){L = loadM();}},
+
+            // Handles cases of MOV M,r (7 cases)
+
+            {0b01110111, [this](){M = A;}},
+            {0b01110000, [this](){M = B;}},
+            {0b01110001, [this](){M = C;}},
+            {0b01110010, [this](){M = D;}},
+            {0b01110011, [this](){M = E;}},
+            {0b01110100, [this](){M = H;}},
+            {0b01110101, [this](){M = L;}},
+
+
+
+    };
+    public:
         void parity(){
             bitset<8> store(0b00000000);
             for (int j=0; j<8; j++){
@@ -96,6 +185,14 @@ class eightfive{
                 ALU(input,0b00000000);
             }
         };
+
+    void executor(bitset<8> opcode) {
+        // implemented in compliance with the intel 8085A manual
+        auto opcheck = optable.find(opcode);
+        if (opcheck != optable.end()){
+            opcheck->second();
+        }
+    }
 };
 void printResult(eightfive &cpu) {
     cout << "Result " << cpu.A <<endl;
@@ -112,8 +209,6 @@ void resetCPU(eightfive cpu){
 int main() {
     eightfive cpu;
     resetCPU(cpu);
-    cpu.A = 0b11111111;
-    cpu.ALU(0b11111111,0b00000011);
-    printResult(cpu);
+
     return 0;
 }
