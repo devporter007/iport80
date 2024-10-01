@@ -1,4 +1,7 @@
-#include <bits/stdc++.h> // not recommended but for ease im using it for now.
+#include <bits/stdc++.h>
+#include <fstream>
+#include <string>
+#include <regex>
 using namespace std;
 // aims to replicate arch design of 8085 exactly.
 // memory specifications: 64k RAM+ROM(8bit);
@@ -6,9 +9,8 @@ using namespace std;
 // This design will follow the modular approach where each component is complete in itself.
 // 8 bit opcode as standard in 8085
 
-
 // TODO:
-// 1. Implement a function that parses text file and processes the instruction set appropritately.
+// 1. Instruction Cycle that adds abstraction above executor, make executor feel confortable with multibyte instructions.
 
 
 class mem {
@@ -30,8 +32,8 @@ public:
 class eightfive{
     private:
         bitset<8> W,Z;
-        mem memory;
     public:
+        mem memory;
         bitset<8> A,B,C,D,E,H,L,M;
         eightfive(){
             A = B = C = D = E = H = L = 0;
@@ -220,6 +222,11 @@ class eightfive{
             opcheck->second();
         }
     }
+
+    void InstructionCycle(){
+
+    }
+
 };
 void printResult(eightfive &cpu) {
     cout << "Result " << cpu.A <<endl;
@@ -230,12 +237,37 @@ void printResult(eightfive &cpu) {
     cout << "S(7) Z(6) x(5) AC(4) x(3) P(2) x(1) Cy(0)" << endl;
 }
 
+
+
 void resetCPU(eightfive cpu){
     cpu.flags = 0;
 }
 int main() {
     eightfive cpu;
     resetCPU(cpu);
-
+    std::regex pattern("^START: (\\d{4})$");
+    std::smatch matches;
+    std::ifstream file("input.txt");
+    std::string str;
+    std::string mem_ad_loc;
+    std::string mem_ad;
+    while (std::getline(file, mem_ad_loc))
+    {
+        if (std::regex_match(mem_ad_loc, matches, pattern)) {
+            mem_ad = matches[1].str();
+            break;
+        }
+        else{
+            return 0;
+        }
+    }
+    std::getline(file, str);
+    unsigned long start_address = std::stoul(mem_ad, nullptr, 16);
+    while (std::getline(file, str)) {
+        unsigned long data = std::stoul(str, nullptr, 16);
+        cpu.memory.write(start_address, data);
+    }
+    cpu.programCounter = start_address;
+    cpu.InstructionCycle(); // implement.
     return 0;
 }

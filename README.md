@@ -5,7 +5,7 @@ I'm sticking with the original 8085A manual and will be implementing architectur
 
 
 ## What works as of now?
-* MOV Instruction(63 total OPCODEs)
+* MOV, ADD, ADC, SUB
 * ALU
 * Memory
 
