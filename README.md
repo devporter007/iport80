@@ -5,11 +5,9 @@ I'm sticking with the original 8085A manual and will be implementing architectur
 
 
 ## What works as of now?
-* MOV, ADD, ADC, SUB
+* Some Instructions
 * ALU
 * Memory
-
-Currently, this emulator doesn't have a proper interface to interact with, so you have to tinker with things through the main function.
 
 ## Implementation Priorities(In Order)
 * Complete instruction set of 8085
