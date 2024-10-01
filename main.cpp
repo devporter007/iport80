@@ -14,9 +14,10 @@ using namespace std;
 
 
 class mem {
-public:
+private:
     array<bitset<8>, 65536> memory;
     bitset<16> rom_end_address;
+public:
     explicit mem(uint16_t rom_size = 16384) {
         rom_end_address = bitset<16>(rom_size - 1);
     }
@@ -165,13 +166,50 @@ class eightfive{
             if (store == 0b00000001) flags[2] = false;
             else flags[2] = true;
         }
+        bitset<16> incrementor_decrementor(bitset<16> input, bitset<8> controller){
+            // use WZ Registers to break down 16 bits into 8 bits chunks, then increment lower byte, check carry and adjust.
+            if (controller == 0b00000000){ // ADD 1
+                W = (input.to_ullong() & 0xFF00) >> 8;
+                Z = (input.to_ullong() & 0x00FF);
+                // add 1 to Z, adjust carry in W, combine WZ to input and return;
+                bitset<1> temp_carry = 0b0; // as implemented internally inside incrementor/decrementor, does not affect any flags.
+                // deviates from hardware accuracy in favour of performance, we perform integer math and check if it exeeds 2^8, if yes then its a overflow and set carry to 1, return the value to Z anyway.
+                uint8_t z_val = Z.to_ulong();
+                z_val++;
+                temp_carry = (z_val == 0) ? 1 : 0;
+                Z = bitset<8>(z_val);
+
+                if (temp_carry == 1) {// adds carry to 1 in case of lower byte overflow, applies same logic from above.
+                    uint8_t w_val = W.to_ulong();
+                    w_val++;
+                    W = bitset<8>(w_val);
+                }
+                return bitset<16>((W.to_ullong() << 8) | Z.to_ullong());
+            }
+            else if (controller == 0b00000011) {// SUB 1
+                W = (input.to_ullong() & 0xFF00) >> 8;
+                Z = (input.to_ullong() & 0x00FF);
+                bitset<1> temp_carry = 0b0;
+                uint8_t z_val = Z.to_ulong();
+                z_val--;
+                temp_carry = (z_val == 255) ? 1 : 0;
+                Z = bitset<8>(z_val);
+                if (temp_carry == 1) {// adds carry to 1 in case of lower byte overflow, applies same logic from above.
+                    uint8_t w_val = W.to_ulong();
+                    w_val--;
+                    W = bitset<8>(w_val);
+                }
+                return bitset<16>((W.to_ullong() << 8) | Z.to_ullong());
+            }
+            return 0b0;
+        }
         void ALU(bitset<8> input, bitset<8> controller){// ALU ONLY TAKES VALUES AS INPUTS, ONLY VALUES.
             if (controller == 0b00000000 || controller == 0b00000001){ //0 or 1
-                bitset<1> cin = (controller == 0b00000001) ? flags[0] : 0;
+                bitset<1> carryin = (controller == 0b00000001) ? flags[0] : 0;
                 for (int i = 0; i <= 7; i++) {
                     if (A[i] == 0b0 && input[i] == 0b0 && (flags[0] == 0b0)) {
                         A[i] = 0b0;
-                        if (cin == 1) A[i] = 0b1;
+                        if (carryin == 1) A[i] = 0b1;
                         flags[0] = 0b1;
                     }
                     else if (A[i] == 0b0 && input[i] == 0b0 && (flags[0] == 0b1)) {
@@ -224,6 +262,13 @@ class eightfive{
     }
 
     void InstructionCycle(){
+        bitset<8> opcode = memory.read(programCounter);
+        while(opcode != 0b01110110){// HLT
+
+
+
+        }
+
 
     }
 
@@ -242,9 +287,9 @@ void printResult(eightfive &cpu) {
 void resetCPU(eightfive cpu){
     cpu.flags = 0;
 }
-int main() {
-    eightfive cpu;
-    resetCPU(cpu);
+
+
+void mainloop(eightfive cpu){
     std::regex pattern("^START: (\\d{4})$");
     std::smatch matches;
     std::ifstream file("input.txt");
@@ -258,7 +303,7 @@ int main() {
             break;
         }
         else{
-            return 0;
+            return;
         }
     }
     std::getline(file, str);
@@ -269,5 +314,10 @@ int main() {
     }
     cpu.programCounter = start_address;
     cpu.InstructionCycle(); // implement.
+}
+int main() {
+    eightfive cpu;
+    resetCPU(cpu);
+    mainloop(cpu); // comment it out in case you want to tinker around stuff. InsCycle isnt implemented right now anyways.
     return 0;
 }

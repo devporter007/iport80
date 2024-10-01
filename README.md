@@ -14,5 +14,4 @@ I'm sticking with the original 8085A manual and will be implementing architectur
 * An interface to interact with the emulator.
 * and more,
 
-
 Program covered under GPLv3, devporter007.
