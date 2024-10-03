@@ -15,16 +15,19 @@ using namespace std;
 
 class InstructionHandler{
 private:
-    unordered_map<uint8_t, std::pair<uint8_t, uint8_t>> instructionInfo;
+    unordered_map<uint8_t, vector<uint8_t>> instructionInfo;
 public:
     InstructionHandler(){
         // there are a total of 246 usable opcodes in 8085A as per Intel(R) Manual for 80 Processor Family.
         // 202 out of those are actually 1 byte opcodes so it makes sense to assign all of them to 1 byte instruction initially
         // we will later make exceptions for 2 or 3 byte ones, that aint much anyway(44)
-        // structure of unordered_map: <opcode, {byte_size, number_of_cycles}
+
+        // structure of unordered_map: <opcode, {byte_size, number_of_cycles, additional_cycles, add_cycle_required}
+
         // the reason for including number of cycles is for clock accurate emulation which will be implemented later on.
+        // cycles will be very helpful in cases like delays etc.
         for (int i = 0; i < 256; i++) {
-            instructionInfo[i] = {1, 4};
+            instructionInfo[i] = {1, 4, 0, 0};
         }
 
         // list of all 2 byte instructions
@@ -39,8 +42,6 @@ public:
         // CPI data (1 opcode)
         // IN d8 (1 opcode)
         // OUT d8 (1 opcode)
-
-
 
         // list of all 3 byte instructions
         // LXI r, Data (4 opcodes)
@@ -66,9 +67,32 @@ public:
         // CPE memory_address (1 opcode)
         // CPO memory_address (1 opcode)
         // CZ memory_address (1 opcode)
+
+        //format: <opcode, {byte_size, number_of_cycles, additional_cycles, add_cycle_required}
+        pair<uint8_t, vector<uint8_t>> exceptions[] = {
+                {0x36,{2,3,0,0}}, {0x3E,{2,2,0,0}}, {0x06,{2,2,0,0}},{0x0E,{2,2,0,0}},{0x16,{2,2,0,0}},{0x1E,{2,2,0,0}},{0x26,{2,2,0,0}},{0x2E,{2,2,0,0}},{0xC6,{2,2,0,0}},{0xCE,{2,2,0,0}},
+                {0xD6,{2,2,0,0}},{0xDE,{2,2,0,0}},{0xE6,{2,2,0,0}},{0xEE,{2,2,0,0}},{0xF6,{2,2,0,0}},{0xFE,{2,2,0,0}},{0xDB,{2,3,0,0}},{0xD3,{2,3,0,0}},{0x01,{3,3,0,0}},{0x11,{3,3,0,0}},
+                {0x21,{3,3,0,0}},{0x31,{3,3,0,0}},{0x3A,{3,4,0,0}},{0x32,{3,4,0,0}},{0x2A,{3,5,0,0}},{0x22,{3,5,0,0}},{0xC3,{2,3,0,0}},{0xDA,{3,2,1,1}},{0xD2,{3,2,1,1}},{0xCA,{3,2,1,1}}
+                ,{0xC2,{3,2,1,1}},{0xF2,{3,2,1,1}},{0xFA,{3,2,1,1}},{0xEA,{3,2,1,1}},{0xE2,{3,2,1,1}},{0xCD,{3,6,0,0}},{0xDC,{3,6,3,1}},{0xFC,{3,6,3,1}},{0xD4,{3,6,3,1}},{0xC4,{3,6,3,1}},
+                {0xF4,{3,6,3,1}},{0xEC,{3,6,3,1}},{0xE4,{3,6,3,1}},{0xCC,{3,6,3,1}}};
+
+        for(auto items : exceptions){
+            instructionInfo[items.first] = items.second;
+        }
+    }
+
+    vector<uint8_t> retrieve_instruction(uint8_t opcode){
+        auto it = instructionInfo.find(opcode);
+        if (it != instructionInfo.end()) {
+            return it->second;
+        }
+        else{
+            return {0,0,0,0};
+        }
     }
 
 };
+
 
 class mem {
 private:
@@ -215,14 +239,14 @@ private:
             {0b10010110, [this](){ALU(M,0b00000011);}},
     };
 public:
-    void parity(){
-        bitset<8> store(0b00000000);
-        for (int j=0; j<8; j++){
-            store[0] = store[0]^A[j];
+    void parity() {
+        bool parity = 0;
+        for (int j = 0; j < 8; j++) {
+            parity ^= A[j];
         }
-        if (store == 0b00000001) flags[2] = false;
-        else flags[2] = true;
+        flags[2] = (parity == 0);
     }
+
     bitset<16> incrementor_decrementor(bitset<16> input, bitset<8> controller){
         // use WZ Registers to break down 16 bits into 8 bits chunks, then increment lower byte, check carry and adjust.
         if (controller == 0b00000000){ // ADD 1
