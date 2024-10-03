@@ -8,10 +8,67 @@ using namespace std;
 // 8 bit registers.
 // This design will follow the modular approach where each component is complete in itself.
 // 8 bit opcode as standard in 8085
-
+// There are some places where i have intentionally decided to deviate from 8085 internal implementations in favour of major performance benefits.
 // TODO:
 // 1. Instruction Cycle that adds abstraction above executor, make executor feel confortable with multibyte instructions.
+// 2. For that to happen, an "InstructionHandler" class needs to be implemented that will guide the processor on how to interpret an instruction.
 
+class InstructionHandler{
+private:
+    unordered_map<uint8_t, std::pair<uint8_t, uint8_t>> instructionInfo;
+public:
+    InstructionHandler(){
+        // there are a total of 246 usable opcodes in 8085A as per Intel(R) Manual for 80 Processor Family.
+        // 202 out of those are actually 1 byte opcodes so it makes sense to assign all of them to 1 byte instruction initially
+        // we will later make exceptions for 2 or 3 byte ones, that aint much anyway(44)
+        // structure of unordered_map: <opcode, {byte_size, number_of_cycles}
+        // the reason for including number of cycles is for clock accurate emulation which will be implemented later on.
+        for (int i = 0; i < 256; i++) {
+            instructionInfo[i] = {1, 4};
+        }
+
+        // list of all 2 byte instructions
+        // MVI R,data(8 opcodes)
+        // ADI data (1 opcode)
+        // ACI data (1 opcode)
+        // SUI data (1 opcode)
+        // SBI data (1 opcode)
+        // ANI data (1 opcode)
+        // XRI data (1 opcode)
+        // ORI data (1 opcode)
+        // CPI data (1 opcode)
+        // IN d8 (1 opcode)
+        // OUT d8 (1 opcode)
+
+
+
+        // list of all 3 byte instructions
+        // LXI r, Data (4 opcodes)
+        // LDA data (1 opcode)
+        // STA data (1 opcode)
+        // LHLD data (1 opcode)
+        // SHLD data (1 opcode)
+        // JMP memory_address (1 opcode)
+        // JC memory_address (1 opcode)
+        // JNC memory_address (1 opcode)
+        // JZ memory_address (1 opcode)
+        // JNZ memory_address (1 opcode)
+        // JP memory_address (1 opcode)
+        // JM memory_address (1 opcode)
+        // JPE memory_address (1 opcode)
+        // JPO memory_address (1 opcode)
+        // CALL memory_address (1 opcode)
+        // CC memory_address (1 opcode)
+        // CM memory_address (1 opcode)
+        // CNC memory_address (1 opcode)
+        // CNZ memory_address (1 opcode)
+        // CP memory_address (1 opcode)
+        // CPE memory_address (1 opcode)
+        // CPO memory_address (1 opcode)
+        // CZ memory_address (1 opcode)
+    }
+
+};
 
 class mem {
 private:
@@ -31,30 +88,30 @@ public:
     }
 };
 class eightfive{
-    private:
-        bitset<8> W,Z;
-    public:
-        mem memory;
-        bitset<8> A,B,C,D,E,H,L,M;
-        eightfive(){
-            A = B = C = D = E = H = L = 0;
-            programCounter = 0;
-        }
-        bitset<8> loadM(){
-            bitset<16> address = (static_cast<unsigned long long>(H.to_ulong()) << 8) | L.to_ulong();
-            M = memory.read(address);
-            return M;
-        }
+private:
+    bitset<8> W,Z;
+public:
+    mem memory;
+    bitset<8> A,B,C,D,E,H,L,M;
+    eightfive(){
+        A = B = C = D = E = H = L = 0;
+        programCounter = 0;
+    }
+    bitset<8> loadM(){
+        bitset<16> address = (static_cast<unsigned long long>(H.to_ulong()) << 8) | L.to_ulong();
+        M = memory.read(address);
+        return M;
+    }
 
-        bitset<8> flags; // S(7) Z(6) x(5) AC(4) x(3) P(2) x(1) Cy(0)
-        // PC and MS are implemented as 16 bit bitset which deviates from the accurate representation of how
-        // things works in 8085 internally, they are implemented as a register pair and used thereof like that.
-        // To ease of things a bit we are instead going for a direct 16 bit approach, it should not affect the
-        // actual results from this emulated processor.
-        stack<bitset<16>> mainstack;
-        bitset<16> programCounter;
+    bitset<8> flags; // S(7) Z(6) x(5) AC(4) x(3) P(2) x(1) Cy(0)
+    // PC and MS are implemented as 16 bit bitset which deviates from the accurate representation of how
+    // things works in 8085 internally, they are implemented as a register pair and used thereof like that.
+    // To ease of things a bit we are instead going for a direct 16 bit approach, it should not affect the
+    // actual results from this emulated processor.
+    stack<bitset<16>> mainstack;
+    bitset<16> programCounter;
 
-    private:
+private:
     unordered_map<bitset<8>, function<void()>> optable = {
             // Handles all cases of MOV r,r;(49 cases)
             {0b01111111, [](){}},
@@ -157,101 +214,103 @@ class eightfive{
             {0b10010101, [this](){ALU(L,0b00000011);}},
             {0b10010110, [this](){ALU(M,0b00000011);}},
     };
-    public:
-        void parity(){
-            bitset<8> store(0b00000000);
-            for (int j=0; j<8; j++){
-                store[0] = store[0]^A[j];
-            }
-            if (store == 0b00000001) flags[2] = false;
-            else flags[2] = true;
+public:
+    void parity(){
+        bitset<8> store(0b00000000);
+        for (int j=0; j<8; j++){
+            store[0] = store[0]^A[j];
         }
-        bitset<16> incrementor_decrementor(bitset<16> input, bitset<8> controller){
-            // use WZ Registers to break down 16 bits into 8 bits chunks, then increment lower byte, check carry and adjust.
-            if (controller == 0b00000000){ // ADD 1
-                W = (input.to_ullong() & 0xFF00) >> 8;
-                Z = (input.to_ullong() & 0x00FF);
-                // add 1 to Z, adjust carry in W, combine WZ to input and return;
-                bitset<1> temp_carry = 0b0; // as implemented internally inside incrementor/decrementor, does not affect any flags.
-                // deviates from hardware accuracy in favour of performance, we perform integer math and check if it exeeds 2^8, if yes then its a overflow and set carry to 1, return the value to Z anyway.
-                uint8_t z_val = Z.to_ulong();
-                z_val++;
-                temp_carry = (z_val == 0) ? 1 : 0;
-                Z = bitset<8>(z_val);
+        if (store == 0b00000001) flags[2] = false;
+        else flags[2] = true;
+    }
+    bitset<16> incrementor_decrementor(bitset<16> input, bitset<8> controller){
+        // use WZ Registers to break down 16 bits into 8 bits chunks, then increment lower byte, check carry and adjust.
+        if (controller == 0b00000000){ // ADD 1
+            W = (input.to_ullong() & 0xFF00) >> 8;
+            Z = (input.to_ullong() & 0x00FF);
+            // add 1 to Z, adjust carry in W, combine WZ to input and return;
+            bitset<1> temp_carry = 0b0; // as implemented internally inside incrementor/decrementor, does not affect any flags.
+            // deviates from hardware accuracy in favour of performance, we perform integer math and check if it exeeds 2^8, if yes then its a overflow and set carry to 1, return the value to Z anyway.
+            uint8_t z_val = Z.to_ulong();
+            z_val++;
+            temp_carry = (z_val == 0) ? 1 : 0;
+            Z = bitset<8>(z_val);
 
-                if (temp_carry == 1) {// adds carry to 1 in case of lower byte overflow, applies same logic from above.
-                    uint8_t w_val = W.to_ulong();
-                    w_val++;
-                    W = bitset<8>(w_val);
-                }
-                return bitset<16>((W.to_ullong() << 8) | Z.to_ullong());
+            if (temp_carry == 1) {// adds carry to 1 in case of lower byte overflow, applies same logic from above.
+                uint8_t w_val = W.to_ulong();
+                w_val++;
+                W = bitset<8>(w_val);
             }
-            else if (controller == 0b00000011) {// SUB 1
-                W = (input.to_ullong() & 0xFF00) >> 8;
-                Z = (input.to_ullong() & 0x00FF);
-                bitset<1> temp_carry = 0b0;
-                uint8_t z_val = Z.to_ulong();
-                z_val--;
-                temp_carry = (z_val == 255) ? 1 : 0;
-                Z = bitset<8>(z_val);
-                if (temp_carry == 1) {// adds carry to 1 in case of lower byte overflow, applies same logic from above.
-                    uint8_t w_val = W.to_ulong();
-                    w_val--;
-                    W = bitset<8>(w_val);
-                }
-                return bitset<16>((W.to_ullong() << 8) | Z.to_ullong());
-            }
-            return 0b0;
+            return bitset<16>((W.to_ullong() << 8) | Z.to_ullong());
         }
-        void ALU(bitset<8> input, bitset<8> controller){// ALU ONLY TAKES VALUES AS INPUTS, ONLY VALUES.
-            if (controller == 0b00000000 || controller == 0b00000001){ //0 or 1
-                bitset<1> carryin = (controller == 0b00000001) ? flags[0] : 0;
-                for (int i = 0; i <= 7; i++) {
-                    if (A[i] == 0b0 && input[i] == 0b0 && (flags[0] == 0b0)) {
-                        A[i] = 0b0;
-                        if (carryin == 1) A[i] = 0b1;
-                        flags[0] = 0b1;
-                    }
-                    else if (A[i] == 0b0 && input[i] == 0b0 && (flags[0] == 0b1)) {
-                        A[i] = 0b1;
-                        flags[0] = 0b0;
-                    }
-                    else if ((A[i] == 0b0 && input[i] == 0b1 || A[i] == 0b1 && input[i] == 0b0) && (flags[0] == 0b0)) {
-                        A[i] = 0b1;
-                        flags[0] = 0b0;
-                    }
-                    else if ((A[i] == 0b0 && input[i] == 0b1 || A[i] == 0b1 && input[i] == 0b0) && (flags[0] == 0b1)) {
-                        A[i] = 0b0;
-                        flags[0] = 0b1;
-                        if (i == 3) flags[4] = 0b1; // Auxiliary Carry
-                    }
-                    else if (A[i] == 0b1 && input[i] == 0b1 && flags[0] == 0b0) {
-                        A[i] = 0b0;
-                        flags[0] = 0b1;
-                        if (i == 3) flags[4] = 0b1; // Auxiliary Carry
-                    }
-                    else if (A[i] == 0b1 && input[i] == 0b1 && flags[0] == 0b1) {
-                        A[i] = 0b1;
-                        flags[0] = 0b1;
-                        if (i == 3) flags[4] = 0b1;
-                    }
-                    if (i == 7 && A[7] == 0b1) flags[7] = 0b1;
-                    else if (i == 7 && A[7] == 0b0) flags[7] = 0b0;
-                }
-                // Check for zero flag
-                if (A == 0b00000000) flags[6] = 0b1;
-                else flags[6] = 0b0;
-                // Update parity flag
-                parity();
+        else if (controller == 0b00000011) {// SUB 1
+            W = (input.to_ullong() & 0xFF00) >> 8;
+            Z = (input.to_ullong() & 0x00FF);
+            bitset<1> temp_carry = 0b0;
+            uint8_t z_val = Z.to_ulong();
+            z_val--;
+            temp_carry = (z_val == 255) ? 1 : 0;
+            Z = bitset<8>(z_val);
+            if (temp_carry == 1) {// adds carry to 1 in case of lower byte overflow, applies same logic from above.
+                uint8_t w_val = W.to_ulong();
+                w_val--;
+                W = bitset<8>(w_val);
             }
+            return bitset<16>((W.to_ullong() << 8) | Z.to_ullong());
+        }
+        return 0b0;
+    }
+    void ALU(bitset<8> input, bitset<8> controller){// ALU ONLY TAKES VALUES AS INPUTS, ONLY VALUES.
 
-            else if (controller == 0b00000011){//3 SUB/SUI
-                // to substract stuff which is A = A - INPUT here, we take the 2s complement of INPUT and then perform ADD.
-                input.flip();
-                input = bitset<8>(input.to_ulong() + 1);
-                ALU(input,0b00000000);
+        // plans to optimize ALU using bit-manipulation, deviation from original architecture but wont be an issue accuracy wise.
+        if (controller == 0b00000000 || controller == 0b00000001){ //0 or 1
+            bitset<1> carryin = (controller == 0b00000001) ? flags[0] : 0;
+            for (int i = 0; i <= 7; i++) {
+                if (A[i] == 0b0 && input[i] == 0b0 && (flags[0] == 0b0)) {
+                    A[i] = 0b0;
+                    if (carryin == 1) A[i] = 0b1;
+                    flags[0] = 0b1;
+                }
+                else if (A[i] == 0b0 && input[i] == 0b0 && (flags[0] == 0b1)) {
+                    A[i] = 0b1;
+                    flags[0] = 0b0;
+                }
+                else if ((A[i] == 0b0 && input[i] == 0b1 || A[i] == 0b1 && input[i] == 0b0) && (flags[0] == 0b0)) {
+                    A[i] = 0b1;
+                    flags[0] = 0b0;
+                }
+                else if ((A[i] == 0b0 && input[i] == 0b1 || A[i] == 0b1 && input[i] == 0b0) && (flags[0] == 0b1)) {
+                    A[i] = 0b0;
+                    flags[0] = 0b1;
+                    if (i == 3) flags[4] = 0b1; // Auxiliary Carry
+                }
+                else if (A[i] == 0b1 && input[i] == 0b1 && flags[0] == 0b0) {
+                    A[i] = 0b0;
+                    flags[0] = 0b1;
+                    if (i == 3) flags[4] = 0b1; // Auxiliary Carry
+                }
+                else if (A[i] == 0b1 && input[i] == 0b1 && flags[0] == 0b1) {
+                    A[i] = 0b1;
+                    flags[0] = 0b1;
+                    if (i == 3) flags[4] = 0b1;
+                }
+                if (i == 7 && A[7] == 0b1) flags[7] = 0b1;
+                else if (i == 7 && A[7] == 0b0) flags[7] = 0b0;
             }
-        };
+            // Check for zero flag
+            if (A == 0b00000000) flags[6] = 0b1;
+            else flags[6] = 0b0;
+            // Update parity flag
+            parity();
+        }
+
+        else if (controller == 0b00000011){//3 SUB/SUI
+            // to substract stuff which is A = A - INPUT here, we take the 2s complement of INPUT and then perform ADD.
+            input.flip();
+            input = bitset<8>(input.to_ulong() + 1);
+            ALU(input,0b00000000);
+        }
+    };
 
     void executor(bitset<8> opcode) {
         // implemented in compliance with the intel 8085A manual
@@ -264,6 +323,7 @@ class eightfive{
     void InstructionCycle(){
         bitset<8> opcode = memory.read(programCounter);
         while(opcode != 0b01110110){// HLT
+            //fetch/execute/decode
 
 
 
