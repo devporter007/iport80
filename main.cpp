@@ -395,7 +395,10 @@ void resetCPU(eightfive cpu){
 void mainloop(eightfive cpu){
     regex pattern("^START: (\\d{4})$");
     smatch matches;
-    ifstream file("C:\\Users\\Arjun\\CLionProjects\\8085\\input.txt");
+    string workDir;
+    cout << "Enter input.txt location: ";
+    cin >> workDir;
+    ifstream file(workDir);
     string str;
     string mem_ad_loc;
     string mem_ad;
