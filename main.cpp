@@ -9,9 +9,6 @@ using namespace std;
 // This design will follow the modular approach where each component is complete in itself.
 // 8 bit opcode as standard in 8085
 // There are some places where i have intentionally decided to deviate from 8085 internal implementations in favour of major performance benefits.
-// TODO:
-// 1. Instruction Cycle that adds abstraction above executor, make executor feel confortable with multibyte instructions.
-// 2. For that to happen, an "InstructionHandler" class needs to be implemented that will guide the processor on how to interpret an instruction.
 
 class InstructionHandler{
 private:
@@ -114,6 +111,7 @@ public:
 class eightfive{
 private:
     bitset<8> W,Z;
+    InstructionHandler instructionHandler;
 public:
     mem memory;
     bitset<8> A,B,C,D,E,H,L,M;
@@ -293,7 +291,7 @@ public:
                 if (A[i] == 0b0 && input[i] == 0b0 && (flags[0] == 0b0)) {
                     A[i] = 0b0;
                     if (carryin == 1) A[i] = 0b1;
-                    flags[0] = 0b1;
+                    flags[0] = 0b0;
                 }
                 else if (A[i] == 0b0 && input[i] == 0b0 && (flags[0] == 0b1)) {
                     A[i] = 0b1;
@@ -336,6 +334,31 @@ public:
         }
     };
 
+    void decode(bitset<8> opcode){
+        vector<uint8_t> opcontrol = instructionHandler.retrieve_instruction(opcode.to_ulong());
+        uint8_t opsize = opcontrol[0];
+        auto opcheck = optable.find(opcode);
+        if (opcheck != optable.end()){
+            if (opsize == 1){
+                programCounter = incrementor_decrementor(programCounter,0x0);
+                return; // no extra bytes needed, return and perform the execution.
+            }
+            else if (opsize == 2){
+                programCounter = incrementor_decrementor(programCounter,0x0);
+                Z = memory.read(programCounter); // fetched second byte and stored in Z;
+                programCounter = incrementor_decrementor(programCounter,0x0);
+                return;
+            }
+            else if (opsize == 3){
+                programCounter = incrementor_decrementor(programCounter,0x0);
+                Z = memory.read(programCounter); // lower byte instruction fetched first to comply with 8085 arch.
+                programCounter = incrementor_decrementor(programCounter,0x0);
+                W = memory.read(programCounter); // higher byte instruction fetch second to comply with 8085 arch.
+                programCounter = incrementor_decrementor(programCounter,0x0);
+                return;
+            }
+        }
+    }
     void executor(bitset<8> opcode) {
         // implemented in compliance with the intel 8085A manual
         auto opcheck = optable.find(opcode);
@@ -345,17 +368,13 @@ public:
     }
 
     void InstructionCycle(){
-        bitset<8> opcode = memory.read(programCounter);
-        while(opcode != 0b01110110){// HLT
-            //fetch/execute/decode
-
-
-
+        while(true){// HLT
+            bitset<8> opcode = memory.read(programCounter);
+            if(opcode == 0b01110110) break;
+            decode(opcode);
+            executor(opcode);
         }
-
-
     }
-
 };
 void printResult(eightfive &cpu) {
     cout << "Result " << cpu.A <<endl;
@@ -374,12 +393,12 @@ void resetCPU(eightfive cpu){
 
 
 void mainloop(eightfive cpu){
-    std::regex pattern("^START: (\\d{4})$");
-    std::smatch matches;
-    std::ifstream file("input.txt");
-    std::string str;
-    std::string mem_ad_loc;
-    std::string mem_ad;
+    regex pattern("^START: (\\d{4})$");
+    smatch matches;
+    ifstream file("C:\\Users\\Arjun\\CLionProjects\\8085\\input.txt");
+    string str;
+    string mem_ad_loc;
+    string mem_ad;
     while (std::getline(file, mem_ad_loc))
     {
         if (std::regex_match(mem_ad_loc, matches, pattern)) {
@@ -390,18 +409,33 @@ void mainloop(eightfive cpu){
             return;
         }
     }
-    std::getline(file, str);
-    unsigned long start_address = std::stoul(mem_ad, nullptr, 16);
+    uint16_t start_address = stoul(mem_ad, nullptr, 16);
+    uint16_t working_address = start_address;
     while (std::getline(file, str)) {
-        unsigned long data = std::stoul(str, nullptr, 16);
-        cpu.memory.write(start_address, data);
+        if (str.empty() || str.find_first_not_of(' ') == std::string::npos) {
+            continue;
+        }
+        try {
+            unsigned long data = stoul(str, nullptr, 16);
+            cpu.memory.write(working_address, data);
+            bitset<8> temps = cpu.memory.read(working_address);
+            working_address = cpu.incrementor_decrementor(working_address, 0x0).to_ulong();
+        } catch (const std::invalid_argument& e) {
+            cerr << "Invalid input on line: " << str << std::endl;
+            return;
+        } catch (const std::out_of_range& e) {
+            cerr << "Number out of range on line: " << str << std::endl;
+            return;
+        }
     }
     cpu.programCounter = start_address;
-    cpu.InstructionCycle(); // implement.
+    cpu.InstructionCycle();
 }
 int main() {
     eightfive cpu;
     resetCPU(cpu);
-    mainloop(cpu); // comment it out in case you want to tinker around stuff. InsCycle isnt implemented right now anyways.
+    cpu.A = 0x15;
+    mainloop(cpu);
+    cout << cpu.A;
     return 0;
 }
