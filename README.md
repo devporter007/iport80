@@ -25,20 +25,35 @@ HEX_OP_CODE
 ```
 
 Examples:
-* ADD A
+* Example 1:
 ```
 START: 4001
-87
-76
+87 (ADD A)
+76 (HLT)
 
 ```
     Output code:
 
-    cpu.A = 0x15;
-    mainloop(cpu);
-    cout << cpu.A;
+    cpu.A = 0x15; (SET A)
+    mainloop(cpu); (EXECUTE)
+    cout << cpu.A; (CHECK OUTPUT)
+* Example 2:
+```angular2html
+START: 4001
+26 (MVI H,40H)
+40
+2E (MVI L, 10H)
+10
+36 (MVI M, 12H)
+12
+76 (HLT)
+```
+```
+Output code:
+cout << cpu.memory.read(0b0100000000010000);
 
-
+Expected Outcome: 00010010
+```
 ## Implementation Priorities(In Order)
 * Output to a text file of all the things that changed.
 * Complete instruction set of 8085.

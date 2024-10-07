@@ -440,5 +440,6 @@ int main() {
     eightfive cpu;
     resetCPU(cpu);
     mainloop(cpu);
+    cout << cpu.memory.read(0b0100000000010000);
     return 0;
 }
