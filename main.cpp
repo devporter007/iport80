@@ -110,21 +110,10 @@ public:
 };
 class eightfive{
 private:
-    bitset<8> W,Z;
     InstructionHandler instructionHandler;
 public:
     mem memory;
-    bitset<8> A,B,C,D,E,H,L,M;
-    eightfive(){
-        A = B = C = D = E = H = L = 0;
-        programCounter = 0;
-    }
-    bitset<8> loadM(){
-        bitset<16> address = (static_cast<unsigned long long>(H.to_ulong()) << 8) | L.to_ulong();
-        M = memory.read(address);
-        return M;
-    }
-
+    bitset<8> A,B,C,D,E,H,L,M,W,Z;
     bitset<8> flags; // S(7) Z(6) x(5) AC(4) x(3) P(2) x(1) Cy(0)
     // PC and MS are implemented as 16 bit bitset which deviates from the accurate representation of how
     // things works in 8085 internally, they are implemented as a register pair and used thereof like that.
@@ -132,109 +121,137 @@ public:
     // actual results from this emulated processor.
     stack<bitset<16>> mainstack;
     bitset<16> programCounter;
+    eightfive() {
+        // Initialize all registers to 0
+        A = B = C = D = E = H = L = M = W = Z = bitset<8>(0);
+        flags = bitset<8>(0);
+        programCounter = bitset<16>(0);
+    }
+
+    bitset<8> loadM(){
+        bitset<16> address = (static_cast<unsigned long long>(H.to_ulong()) << 8) | L.to_ulong();
+        M = memory.read(address);
+        return M;
+    }
+
+    void writeM(bitset<8> data){
+        bitset<16> address = (static_cast<unsigned long long>(H.to_ulong()) << 8) | L.to_ulong();
+        memory.write(address, data);
+        return;
+    }
 
 private:
-    unordered_map<bitset<8>, function<void()>> optable = {
+private:
+    unordered_map<bitset<8>, function<void(eightfive&)>> optable = {
             // Handles all cases of MOV r,r;(49 cases)
-            {0b01111111, [](){}},
-            {0b01111000, [this](){ A = B; }},
-            {0b01111001, [this](){ A = C; }},
-            {0b01111010, [this](){ A = D; }},
-            {0b01111011, [this](){ A = E; }},
-            {0b01111100, [this](){ A = H; }},
-            {0b01111101, [this](){ A = L; }},
-            {0b01000111, [this](){ B = A; }},
-            {0b01000000, [this](){}},
-            {0b01000001, [this](){ B = C;}},
-            {0b01000010, [this](){ B = D;}},
-            {0b01000011, [this](){ B = E;}},
-            {0b01000100, [this](){ B = H;}},
-            {0b01000101, [this](){ B = L;}},
-            {0b01001111, [this](){ C = A;}},
-            {0b01001000, [this](){ C = B;}},
-            {0b01001000, [this](){ C = B;}},
-            {0b01001001, [this](){}},
-            {0b01001010, [this](){ C = D;}},
-            {0b01001011, [this](){ C = E;}},
-            {0b01001100, [this](){ C = H;}},
-            {0b01001101, [this](){ C = L;}},
-            {0b01010111, [this](){ D = A;}},
-            {0b01010000, [this](){ D = B;}},
-            {0b01010001, [this](){ D = C;}},
-            {0b01010010, [this](){}},
-            {0b01010011, [this](){ D = E;}},
-            {0b01010100, [this](){ D = H;}},
-            {0b01010101, [this](){ D = L;}},
-            {0b01011111, [this](){ E = A;}},
-            {0b01011000, [this](){ E = B;}},
-            {0b01011001, [this](){ E = C;}},
-            {0b01011010, [this](){ E = D;}},
-            {0b01011011, [this](){}},
-            {0b01011100, [this](){ E = H;}},
-            {0b01011101, [this](){ E = L;}},
-            {0b01100111, [this](){ H = A;}},
-            {0b01100000, [this](){ H = B;}},
-            {0b01100001, [this](){ H = C;}},
-            {0b01100010, [this](){ H = D;}},
-            {0b01100011, [this](){ H = E;}},
-            {0b01100100, [this](){}},
-            {0b01100101, [this](){ H = L;}},
-            {0b01101111, [this](){ L = A;}},
-            {0b01101000, [this](){ L = B;}},
-            {0b01101001, [this](){ L = C;}},
-            {0b01101010, [this](){ L = D;}},
-            {0b01101011, [this](){ L = E;}},
-            {0b01101100, [this](){ L = H;}},
-            {0b01101101, [this](){ }},
+            {0b01111111, [](eightfive& cpu){}},
+            {0b01111000, [](eightfive& cpu){ cpu.A = cpu.B; }},
+            {0b01111001, [](eightfive& cpu){ cpu.A = cpu.C; }},
+            {0b01111010, [](eightfive& cpu){ cpu.A = cpu.D; }},
+            {0b01111011, [](eightfive& cpu){ cpu.A = cpu.E; }},
+            {0b01111100, [](eightfive& cpu){ cpu.A = cpu.H; }},
+            {0b01111101, [](eightfive& cpu){ cpu.A = cpu.L; }},
+            {0b01000111, [](eightfive& cpu){ cpu.B = cpu.A; }},
+            {0b01000000, [](eightfive& cpu){}},
+            {0b01000001, [](eightfive& cpu){ cpu.B = cpu.C;}},
+            {0b01000010, [](eightfive& cpu){ cpu.B = cpu.D;}},
+            {0b01000011, [](eightfive& cpu){ cpu.B = cpu.E;}},
+            {0b01000100, [](eightfive& cpu){ cpu.B = cpu.H;}},
+            {0b01000101, [](eightfive& cpu){ cpu.B = cpu.L;}},
+            {0b01001111, [](eightfive& cpu){ cpu.C = cpu.A;}},
+            {0b01001000, [](eightfive& cpu){ cpu.C = cpu.B;}},
+            {0b01001000, [](eightfive& cpu){ cpu.C = cpu.B;}},
+            {0b01001001, [](eightfive& cpu){}},
+            {0b01001010, [](eightfive& cpu){ cpu.C = cpu.D;}},
+            {0b01001011, [](eightfive& cpu){ cpu.C = cpu.E;}},
+            {0b01001100, [](eightfive& cpu){ cpu.C = cpu.H;}},
+            {0b01001101, [](eightfive& cpu){ cpu.C = cpu.L;}},
+            {0b01010111, [](eightfive& cpu){ cpu.D = cpu.A;}},
+            {0b01010000, [](eightfive& cpu){ cpu.D = cpu.B;}},
+            {0b01010001, [](eightfive& cpu){ cpu.D = cpu.C;}},
+            {0b01010010, [](eightfive& cpu){}},
+            {0b01010011, [](eightfive& cpu){ cpu.D = cpu.E;}},
+            {0b01010100, [](eightfive& cpu){ cpu.D = cpu.H;}},
+            {0b01010101, [](eightfive& cpu){ cpu.D = cpu.L;}},
+            {0b01011111, [](eightfive& cpu){ cpu.E = cpu.A;}},
+            {0b01011000, [](eightfive& cpu){ cpu.E = cpu.B;}},
+            {0b01011001, [](eightfive& cpu){ cpu.E = cpu.C;}},
+            {0b01011010, [](eightfive& cpu){ cpu.E = cpu.D;}},
+            {0b01011011, [](eightfive& cpu){}},
+            {0b01011100, [](eightfive& cpu){ cpu.E = cpu.H;}},
+            {0b01011101, [](eightfive& cpu){ cpu.E = cpu.L;}},
+            {0b01100111, [](eightfive& cpu){ cpu.H = cpu.A;}},
+            {0b01100000, [](eightfive& cpu){ cpu.H = cpu.B;}},
+            {0b01100001, [](eightfive& cpu){ cpu.H = cpu.C;}},
+            {0b01100010, [](eightfive& cpu){ cpu.H = cpu.D;}},
+            {0b01100011, [](eightfive& cpu){ cpu.H = cpu.E;}},
+            {0b01100100, [](eightfive& cpu){}},
+            {0b01100101, [](eightfive& cpu){ cpu.H = cpu.L;}},
+            {0b01101111, [](eightfive& cpu){ cpu.L = cpu.A;}},
+            {0b01101000, [](eightfive& cpu){ cpu.L = cpu.B;}},
+            {0b01101001, [](eightfive& cpu){ cpu.L = cpu.C;}},
+            {0b01101010, [](eightfive& cpu){ cpu.L = cpu.D;}},
+            {0b01101011, [](eightfive& cpu){ cpu.L = cpu.E;}},
+            {0b01101100, [](eightfive& cpu){ cpu.L = cpu.H;}},
+            {0b01101101, [](eightfive& cpu){ }},
 
             // Handles cases of MOV r,M (7 cases)
-            {0b01111110, [this](){A = loadM();}},
-            {0b01000110, [this](){B = loadM();}},
-            {0b01001110, [this](){C = loadM();}},
-            {0b01010110, [this](){D = loadM();}},
-            {0b01011110, [this](){E = loadM();}},
-            {0b01100110, [this](){H = loadM();}},
-            {0b01101110, [this](){L = loadM();}},
+            {0b01111110, [](eightfive& cpu){ cpu.A = cpu.loadM();}},
+            {0b01000110, [](eightfive& cpu){ cpu.B = cpu.loadM();}},
+            {0b01001110, [](eightfive& cpu){ cpu.C = cpu.loadM();}},
+            {0b01010110, [](eightfive& cpu){ cpu.D = cpu.loadM();}},
+            {0b01011110, [](eightfive& cpu){ cpu.E = cpu.loadM();}},
+            {0b01100110, [](eightfive& cpu){ cpu.H = cpu.loadM();}},
+            {0b01101110, [](eightfive& cpu){ cpu.L = cpu.loadM();}},
 
             // Handles cases of MOV M,r (7 cases)
-
-            {0b01110111, [this](){M = A;}},
-            {0b01110000, [this](){M = B;}},
-            {0b01110001, [this](){M = C;}},
-            {0b01110010, [this](){M = D;}},
-            {0b01110011, [this](){M = E;}},
-            {0b01110100, [this](){M = H;}},
-            {0b01110101, [this](){M = L;}},
+            {0b01110111, [](eightfive& cpu){ cpu.writeM(cpu.A);}},
+            {0b01110000, [](eightfive& cpu){ cpu.writeM(cpu.B);}},
+            {0b01110001, [](eightfive& cpu){ cpu.writeM(cpu.C);}},
+            {0b01110010, [](eightfive& cpu){ cpu.writeM(cpu.D);}},
+            {0b01110011, [](eightfive& cpu){ cpu.writeM(cpu.E);}},
+            {0b01110100, [](eightfive& cpu){ cpu.writeM(cpu.H);}},
+            {0b01110101, [](eightfive& cpu){ cpu.writeM(cpu.L);}},
 
             // ADD r(7 cases);
-            {0b10000111, [this](){ALU(A,0b00000000);}},
-            {0b10000000, [this](){ALU(B,0b00000000);}},
-            {0b10000001, [this](){ALU(C,0b00000000);}},
-            {0b10000010, [this](){ALU(D,0b00000000);}},
-            {0b10000011, [this](){ALU(E,0b00000000);}},
-            {0b10000100, [this](){ALU(H,0b00000000);}},
-            {0b10000101, [this](){ALU(L,0b00000000);}},
-            {0b10000110, [this](){ALU(M,0b00000000);}},
+            {0b10000111, [](eightfive& cpu){ cpu.ALU(cpu.A,0b00000000);}},
+            {0b10000000, [](eightfive& cpu){ cpu.ALU(cpu.B,0b00000000);}},
+            {0b10000001, [](eightfive& cpu){ cpu.ALU(cpu.C,0b00000000);}},
+            {0b10000010, [](eightfive& cpu){ cpu.ALU(cpu.D,0b00000000);}},
+            {0b10000011, [](eightfive& cpu){ cpu.ALU(cpu.E,0b00000000);}},
+            {0b10000100, [](eightfive& cpu){ cpu.ALU(cpu.H,0b00000000);}},
+            {0b10000101, [](eightfive& cpu){ cpu.ALU(cpu.L,0b00000000);}},
+            {0b10000110, [](eightfive& cpu){ cpu.ALU(cpu.loadM(),0b00000000);}},
 
             // ADC r(7 cases);
-            {0b10001111, [this](){ALU(A,0b00000001);}},
-            {0b10001000, [this](){ALU(B,0b00000001);}},
-            {0b10001001, [this](){ALU(C,0b00000001);}},
-            {0b10001010, [this](){ALU(D,0b00000001);}},
-            {0b10001011, [this](){ALU(E,0b00000001);}},
-            {0b10001100, [this](){ALU(H,0b00000001);}},
-            {0b10001101, [this](){ALU(L,0b00000001);}},
-            {0b10001110, [this](){ALU(M,0b00000001);}},
+            {0b10001111, [](eightfive& cpu){ cpu.ALU(cpu.A,0b00000001);}},
+            {0b10001000, [](eightfive& cpu){ cpu.ALU(cpu.B,0b00000001);}},
+            {0b10001001, [](eightfive& cpu){ cpu.ALU(cpu.C,0b00000001);}},
+            {0b10001010, [](eightfive& cpu){ cpu.ALU(cpu.D,0b00000001);}},
+            {0b10001011, [](eightfive& cpu){ cpu.ALU(cpu.E,0b00000001);}},
+            {0b10001100, [](eightfive& cpu){ cpu.ALU(cpu.H,0b00000001);}},
+            {0b10001101, [](eightfive& cpu){ cpu.ALU(cpu.L,0b00000001);}},
+            {0b10001110, [](eightfive& cpu){ cpu.ALU(cpu.loadM(),0b00000001);}},
 
             // SUB r(7 cases);
-            {0b10010111, [this](){ALU(A,0b00000011);}},
-            {0b10010000, [this](){ALU(B,0b00000011);}},
-            {0b10010001, [this](){ALU(C,0b00000011);}},
-            {0b10010010, [this](){ALU(D,0b00000011);}},
-            {0b10010011, [this](){ALU(E,0b00000011);}},
-            {0b10010100, [this](){ALU(H,0b00000011);}},
-            {0b10010101, [this](){ALU(L,0b00000011);}},
-            {0b10010110, [this](){ALU(M,0b00000011);}},
+            {0b10010111, [](eightfive& cpu){ cpu.ALU(cpu.A,0b00000011);}},
+            {0b10010000, [](eightfive& cpu){ cpu.ALU(cpu.B,0b00000011);}},
+            {0b10010001, [](eightfive& cpu){ cpu.ALU(cpu.C,0b00000011);}},
+            {0b10010010, [](eightfive& cpu){ cpu.ALU(cpu.D,0b00000011);}},
+            {0b10010011, [](eightfive& cpu){ cpu.ALU(cpu.E,0b00000011);}},
+            {0b10010100, [](eightfive& cpu){ cpu.ALU(cpu.H,0b00000011);}},
+            {0b10010101, [](eightfive& cpu){ cpu.ALU(cpu.L,0b00000011);}},
+            {0b10010110, [](eightfive& cpu){ cpu.ALU(cpu.loadM(),0b00000011);}},
+
+            // MVI r/M (8 cases)
+            {0x3E, [](eightfive& cpu){ cpu.A = cpu.Z;}},
+            {0x06, [](eightfive& cpu){ cpu.B = cpu.Z;}},
+            {0x0E, [](eightfive& cpu){ cpu.C = cpu.Z;}},
+            {0x16, [](eightfive& cpu){ cpu.D = cpu.Z;}},
+            {0x1E, [](eightfive& cpu){ cpu.E = cpu.Z;}},
+            {0x26, [](eightfive& cpu){ cpu.H = cpu.Z;}},
+            {0x2E, [](eightfive& cpu){ cpu.L = cpu.Z;}},
+            {0x36, [](eightfive& cpu){ cpu.writeM(cpu.Z);}}
     };
 public:
     void parity() {
@@ -246,39 +263,39 @@ public:
     }
 
     bitset<16> incrementor_decrementor(bitset<16> input, bitset<8> controller){
-        // use WZ Registers to break down 16 bits into 8 bits chunks, then increment lower byte, check carry and adjust.
+        // Do not use WZ registers here, incrementor and decrementor circuit has its own dedicated registers as per the architecture to avoid overwrites.
         if (controller == 0b00000000){ // ADD 1
-            W = (input.to_ullong() & 0xFF00) >> 8;
-            Z = (input.to_ullong() & 0x00FF);
-            // add 1 to Z, adjust carry in W, combine WZ to input and return;
+            bitset<8> temp_w = (input.to_ullong() & 0xFF00) >> 8;
+            bitset<8> temp_z = (input.to_ullong() & 0x00FF);
+            // add 1 to temp_z, adjust carry in temp_w, combine temp_w+temp_z to input and return;
             bitset<1> temp_carry = 0b0; // as implemented internally inside incrementor/decrementor, does not affect any flags.
-            // deviates from hardware accuracy in favour of performance, we perform integer math and check if it exeeds 2^8, if yes then its a overflow and set carry to 1, return the value to Z anyway.
-            uint8_t z_val = Z.to_ulong();
+            // deviates from hardware accuracy in favour of performance, we perform integer math and check if it exeeds 2^8, if yes then its a overflow and set carry to 1, return the value to temp_z anyway.
+            uint8_t z_val = temp_z.to_ulong();
             z_val++;
             temp_carry = (z_val == 0) ? 1 : 0;
-            Z = bitset<8>(z_val);
+            temp_z = bitset<8>(z_val);
 
             if (temp_carry == 1) {// adds carry to 1 in case of lower byte overflow, applies same logic from above.
-                uint8_t w_val = W.to_ulong();
+                uint8_t w_val = temp_w.to_ulong();
                 w_val++;
-                W = bitset<8>(w_val);
+                temp_w = bitset<8>(w_val);
             }
-            return bitset<16>((W.to_ullong() << 8) | Z.to_ullong());
+            return bitset<16>((temp_w.to_ullong() << 8) | temp_z.to_ullong());
         }
         else if (controller == 0b00000011) {// SUB 1
-            W = (input.to_ullong() & 0xFF00) >> 8;
-            Z = (input.to_ullong() & 0x00FF);
+            bitset<8> temp_w = (input.to_ullong() & 0xFF00) >> 8;
+            bitset<8> temp_z = (input.to_ullong() & 0x00FF);
             bitset<1> temp_carry = 0b0;
-            uint8_t z_val = Z.to_ulong();
+            uint8_t z_val = temp_z.to_ulong();
             z_val--;
             temp_carry = (z_val == 255) ? 1 : 0;
-            Z = bitset<8>(z_val);
+            temp_z = bitset<8>(z_val);
             if (temp_carry == 1) {// adds carry to 1 in case of lower byte overflow, applies same logic from above.
-                uint8_t w_val = W.to_ulong();
+                uint8_t w_val = temp_w.to_ulong();
                 w_val--;
-                W = bitset<8>(w_val);
+                temp_w = bitset<8>(w_val);
             }
-            return bitset<16>((W.to_ullong() << 8) | Z.to_ullong());
+            return bitset<16>((temp_w.to_ullong() << 8) | temp_z.to_ullong());
         }
         return 0b0;
     }
@@ -341,13 +358,11 @@ public:
         if (opcheck != optable.end()){
             if (opsize == 1){
                 programCounter = incrementor_decrementor(programCounter,0x0);
-                return; // no extra bytes needed, return and perform the execution.
             }
             else if (opsize == 2){
                 programCounter = incrementor_decrementor(programCounter,0x0);
                 Z = memory.read(programCounter); // fetched second byte and stored in Z;
                 programCounter = incrementor_decrementor(programCounter,0x0);
-                return;
             }
             else if (opsize == 3){
                 programCounter = incrementor_decrementor(programCounter,0x0);
@@ -355,15 +370,13 @@ public:
                 programCounter = incrementor_decrementor(programCounter,0x0);
                 W = memory.read(programCounter); // higher byte instruction fetch second to comply with 8085 arch.
                 programCounter = incrementor_decrementor(programCounter,0x0);
-                return;
             }
         }
     }
     void executor(bitset<8> opcode) {
-        // implemented in compliance with the intel 8085A manual
         auto opcheck = optable.find(opcode);
-        if (opcheck != optable.end()){
-            opcheck->second();
+        if (opcheck != optable.end()) {
+            opcheck->second(*this);
         }
     }
 
@@ -376,23 +389,12 @@ public:
         }
     }
 };
-void printResult(eightfive &cpu) {
-    cout << "Result " << cpu.A <<endl;
-    for (int i = 7; i >= 0; i--) {
-        cout << cpu.flags[i] << " ";
-    }
-    cout << endl;
-    cout << "S(7) Z(6) x(5) AC(4) x(3) P(2) x(1) Cy(0)" << endl;
-}
 
-
-
-void resetCPU(eightfive cpu){
+void resetCPU(eightfive &cpu){
     cpu.flags = 0;
 }
 
-
-void mainloop(eightfive cpu){
+void mainloop(eightfive &cpu){
     regex pattern("^START: (\\d{4})$");
     smatch matches;
     string workDir;
@@ -437,8 +439,6 @@ void mainloop(eightfive cpu){
 int main() {
     eightfive cpu;
     resetCPU(cpu);
-    cpu.A = 0x15;
     mainloop(cpu);
-    cout << cpu.A;
     return 0;
 }
