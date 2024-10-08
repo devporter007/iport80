@@ -24,7 +24,7 @@ HEX_OP_CODE
 76
 ```
 
-Examples:
+## Examples:
 * Example 1:
 ```
 START: 4001
