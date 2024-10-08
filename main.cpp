@@ -120,6 +120,7 @@ public:
     // To ease of things a bit we are instead going for a direct 16 bit approach, it should not affect the
     // actual results from this emulated processor.
     stack<bitset<16>> mainstack;
+    bitset<16> stackPointer;
     bitset<16> programCounter;
     eightfive() {
         // Initialize all registers to 0
@@ -251,7 +252,27 @@ private:
             {0x1E, [](eightfive& cpu){ cpu.E = cpu.Z;}},
             {0x26, [](eightfive& cpu){ cpu.H = cpu.Z;}},
             {0x2E, [](eightfive& cpu){ cpu.L = cpu.Z;}},
-            {0x36, [](eightfive& cpu){ cpu.writeM(cpu.Z);}}
+            {0x36, [](eightfive& cpu){ cpu.writeM(cpu.Z);}},
+
+            // LXI rp, data16
+            {0x01, [](eightfive& cpu){ cpu.B = cpu.W; cpu.C = cpu.Z;}},
+            {0x11, [](eightfive& cpu){ cpu.D = cpu.W; cpu.E = cpu.Z;}},
+            {0x21, [](eightfive& cpu){ cpu.H = cpu.W; cpu.L = cpu.Z;}},
+            {0x31, [](eightfive& cpu){ cpu.stackPointer = ((cpu.W.to_ullong() << 8) | cpu.Z.to_ullong());}}, // LXI SP data16
+
+            // LDA
+            {0x3A, [](eightfive& cpu){ bitset<16> memad = ((cpu.W.to_ullong() << 8) | cpu.Z.to_ullong()); cpu.A = cpu.memory.read(memad);}},
+
+            // STA
+            {0x32, [](eightfive& cpu){ bitset<16> memad = ((cpu.W.to_ullong() << 8) | cpu.Z.to_ullong()); cpu.memory.write(memad, cpu.A);}},
+
+            // LHLD
+            {0x2A, [](eightfive& cpu){ bitset<16> memad = ((cpu.W.to_ullong() << 8) | cpu.Z.to_ullong()); bitset<8> lo = cpu.memory.read(memad); cpu.L = lo; memad = cpu.incrementor_decrementor(memad,0x0);bitset<8> ho = cpu.memory.read(memad); cpu.H = ho;}},
+
+            //SHLD
+            {0x22, [](eightfive& cpu){ bitset<16> memad = ((cpu.W.to_ullong() << 8) | cpu.Z.to_ullong()); cpu.memory.write(memad,cpu.L); memad = cpu.incrementor_decrementor(memad,0x0);cpu.memory.write(memad,cpu.H);}},
+
+
     };
 public:
     void parity() {
