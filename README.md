@@ -15,6 +15,22 @@ Format for input.txt
 
 
 ```
+DATA: {STARTING ADDRESS}
+8_BIT_DATA
+8_BIT_DATA
+8_BIT_DATA
+xx
+xx
+xx
+
+DATA: {STARTING_ADDRESS_2}
+8_BIT_DATA
+8_BIT_DATA
+8_BIT_DATA
+xx
+xx
+xx
+
 START: {STARTING_ADDRESS}
 HEX_OP_CODE
 HEX_OP_CODE
@@ -23,7 +39,10 @@ HEX_OP_CODE
 ..
 76
 ```
-
+### Rules:
+* Always keep the DATA sections at the top, they can be as much as you want.
+* START section should always be kept at the bottom.
+* 76(HLT) should be present at the end of file otherwise emulator will run indefinitely.
 ## Examples:
 * Example 1:
 ```
