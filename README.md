@@ -1,13 +1,27 @@
 # iPort80
-WIP emulator that tries to replicate Intel's 8085 microprocessor
-
-I'm sticking with the original 8085A manual and will be implementing architecture and instructions as such.
-
-As of now emulator is functional with its limited instruction set. 
+```angular2html
+  Copyright (C) 2024 devporter007
+ 
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+ 
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+ 
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see https://www.gnu.org/licenses/
+ 
+```
+iPort80 is a work-in-progress emulator that aims to accurately replicate the Intel 8085 microprocessor. The implementation strictly follows the original 8085A manual for architecture and instruction set accuracy.
 
 ## Important Information
-* First 16KB of memory is reserved for ROM, Emulator by design wont allow you to write in ROM so write only from 4001H.
+* First 16KB of memory is reserved for ROM, Emulator by design wont allow you to write in ROM so write only from 4000H.
 * Currently you need to manually tinker with the main function to read the output. Proper outputting to a text file is the next priority.
+* Refer to this [manual](Intel(R)%208085%20User%20Manual.pdf) for 8085's architectural information and information about instruction sets.
 ## How to use?
 Just specify your input.txt location when emulator asks for it.
 
@@ -42,6 +56,7 @@ HEX_OP_CODE
 ### Rules:
 * Always keep the DATA sections at the top, they can be as much as you want.
 * START section should always be kept at the bottom.
+* OPCODES should always be given in base16(hexadecimal) format and should comply with the architectural requirements of 8085 processor.
 * 76(HLT) should be present at the end of file otherwise emulator will run indefinitely.
 ## Examples:
 * Example 1:
@@ -92,10 +107,13 @@ cout << cpu.H << cpu.L;
 
 Expected Outcome: 0011110001001110
 ```
+
+More examples [here](docs\EXAMPLES.md).
 ## Implementation Priorities(In Order)
 * Detailed documentation of emulator specifics and usage guidelines.
 * Output to a text file of all the things that changed.
 * Complete instruction set of 8085.
 * Debugging Capabilities.
 
-Program covered under GPLv3, devporter007.
+## Contributing
+See [CONTRIBUTING.md](docs\CONTRIBUTING.md)

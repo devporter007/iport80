@@ -96,7 +96,7 @@ private:
     array<bitset<8>, 65536> memory;
     bitset<16> rom_end_address;
 public:
-    explicit mem(uint16_t rom_size = 16384) {
+    explicit mem(uint16_t rom_size = 16383) {
         rom_end_address = bitset<16>(rom_size - 1);
     }
     void write(bitset<16> address, bitset<8> value) {
