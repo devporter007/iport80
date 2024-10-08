@@ -415,44 +415,63 @@ void resetCPU(eightfive &cpu){
     cpu.flags = 0;
 }
 
-void mainloop(eightfive &cpu){
-    regex pattern("^START: (\\d{4})$");
+void mainloop(eightfive &cpu) {
+    regex start_pattern("^START: (\\d{4})$");
+    regex data_pattern("^DATA: (\\d{4})$");
     smatch matches;
     string workDir;
     cout << "Enter input.txt location: ";
     cin >> workDir;
     ifstream file(workDir);
-    string str;
-    string mem_ad_loc;
-    string mem_ad;
-    while (std::getline(file, mem_ad_loc))
-    {
-        if (std::regex_match(mem_ad_loc, matches, pattern)) {
-            mem_ad = matches[1].str();
+    string line;
+    uint16_t start_address = 0;
+    uint16_t current_address = 0;
+    while (getline(file, line)) {
+        if (regex_match(line, matches, data_pattern)) {
+            current_address = stoul(matches[1].str(), nullptr, 16);
+            while (getline(file, line) && !line.empty() && line.find("DATA:") == string::npos && line.find("START:") == string::npos) {
+                try {
+                    unsigned long data = stoul(line, nullptr, 16);
+                    cpu.memory.write(current_address, data);
+                    current_address = cpu.incrementor_decrementor(current_address, 0x0).to_ulong();
+                } catch (const std::exception& e) {
+                    cerr << "Error processing data line: " << line << endl;
+                    return;
+                }
+            }
+            if (!line.empty()) {
+                file.seekg(-line.length() - 1, ios_base::cur);
+            }
+        }
+        if (regex_match(line, matches, start_pattern)) {
             break;
         }
-        else{
-            return;
+    }
+    file.clear();
+    file.seekg(0, ios::beg);
+    while (getline(file, line)) {
+        if (regex_match(line, matches, start_pattern)) {
+            start_address = stoul(matches[1].str(), nullptr, 16);
+            current_address = start_address;
+            while (getline(file, line)) {
+                if (line.empty() || line.find_first_not_of(' ') == string::npos) {
+                    continue;
+                }
+                try {
+                    unsigned long data = stoul(line, nullptr, 16);
+                    cpu.memory.write(current_address, data);
+                    current_address = cpu.incrementor_decrementor(current_address, 0x0).to_ulong();
+                } catch (const std::exception& e) {
+                    cerr << "Error processing instruction line: " << line << endl;
+                    return;
+                }
+            }
+            break;
         }
     }
-    uint16_t start_address = stoul(mem_ad, nullptr, 16);
-    uint16_t working_address = start_address;
-    while (std::getline(file, str)) {
-        if (str.empty() || str.find_first_not_of(' ') == std::string::npos) {
-            continue;
-        }
-        try {
-            unsigned long data = stoul(str, nullptr, 16);
-            cpu.memory.write(working_address, data);
-            bitset<8> temps = cpu.memory.read(working_address);
-            working_address = cpu.incrementor_decrementor(working_address, 0x0).to_ulong();
-        } catch (const std::invalid_argument& e) {
-            cerr << "Invalid input on line: " << str << std::endl;
-            return;
-        } catch (const std::out_of_range& e) {
-            cerr << "Number out of range on line: " << str << std::endl;
-            return;
-        }
+    if (start_address == 0) {
+        cerr << "No START section found in the input file." << endl;
+        return;
     }
     cpu.programCounter = start_address;
     cpu.InstructionCycle();
@@ -461,6 +480,6 @@ int main() {
     eightfive cpu;
     resetCPU(cpu);
     mainloop(cpu);
-    cout << cpu.memory.read(0b0100000000010000);
+    cout << cpu.H << cpu.L;
     return 0;
 }
