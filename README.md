@@ -108,7 +108,7 @@ cout << cpu.H << cpu.L;
 Expected Outcome: 0011110001001110
 ```
 
-More examples [here](docs\EXAMPLES.md).
+More examples [here](docs/EXAMPLES.md).
 ## Implementation Priorities(In Order)
 * Detailed documentation of emulator specifics and usage guidelines.
 * Output to a text file of all the things that changed.
@@ -116,4 +116,4 @@ More examples [here](docs\EXAMPLES.md).
 * Debugging Capabilities.
 
 ## Contributing
-See [CONTRIBUTING.md](docs\CONTRIBUTING.md)
+See [CONTRIBUTING.md](docs/CONTRIBUTING.md)
