@@ -291,7 +291,54 @@ private:
             //SHLD
             {0x22, [](eightfive& cpu){ bitset<16> memad = ((cpu.W.to_ullong() << 8) | cpu.Z.to_ullong()); cpu.memory.write(memad,cpu.L); memad = cpu.incrementor_decrementor(memad,0x0);cpu.memory.write(memad,cpu.H);}},
 
+            //LDAX(2 cases)
+            {0x0A, [](eightfive& cpu){ bitset<16> memad = ((cpu.B.to_ullong() << 8) | cpu.C.to_ullong()); cpu.A = cpu.memory.read(memad);}},
+            {0x1A, [](eightfive& cpu){ bitset<16> memad = ((cpu.D.to_ullong() << 8) | cpu.E.to_ullong()); cpu.A = cpu.memory.read(memad);}},
 
+            //STAX(2 cases)
+            {0x02, [](eightfive& cpu){ bitset<16> memad = ((cpu.B.to_ullong() << 8) | cpu.C.to_ullong()); cpu.memory.write(memad,cpu.A);}},
+            {0x12, [](eightfive& cpu){ bitset<16> memad = ((cpu.D.to_ullong() << 8) | cpu.E.to_ullong()); cpu.memory.write(memad,cpu.A);}},
+
+            //XCHG , safely uses W-Z register pair to facilitate exchange as it is a single byte instruction, there is no need to worry about overwriting.
+            {0xEB, [](eightfive& cpu){
+                cpu.W = cpu.H;
+                cpu.Z = cpu.L;
+                cpu.H = cpu.D;
+                cpu.L = cpu.E;
+                cpu.D = cpu.W;
+                cpu.E = cpu.Z;}},
+
+            // ADI d8
+            {0xC6, [](eightfive& cpu){ cpu.ALU(cpu.Z,0x0);}},
+
+            // ACI d8
+            {0xCE, [](eightfive& cpu){ cpu.ALU(cpu.Z,0x1);}},
+
+            // SUI d8 D6
+            {0xD6, [](eightfive& cpu){ cpu.ALU(cpu.Z,0x3);}},
+
+            // SBB r(8 cases)
+            {0x9F, [](eightfive& cpu){ cpu.ALU(cpu.A,0x4);}},
+            {0x98, [](eightfive& cpu){ cpu.ALU(cpu.B,0x4);}},
+            {0x99, [](eightfive& cpu){ cpu.ALU(cpu.C,0x4);}},
+            {0x9A, [](eightfive& cpu){ cpu.ALU(cpu.D,0x4);}},
+            {0x9B, [](eightfive& cpu){ cpu.ALU(cpu.E,0x4);}},
+            {0x9C, [](eightfive& cpu){ cpu.ALU(cpu.H,0x4);}},
+            {0x9D, [](eightfive& cpu){ cpu.ALU(cpu.L,0x4);}},
+            {0x9E, [](eightfive& cpu){ cpu.ALU(cpu.loadM(),0x4);}},
+
+            // SBI d8
+            {0xDE, [](eightfive& cpu){ cpu.ALU(cpu.Z,0x4);}},
+
+           /* // INR r //
+            {0x04, [](eightfive& cpu){
+                uint8_t vin = cpu.B.to_ulong();
+                uint8_t result = vin + 1; // properly handles edge case of 255+1;
+                cpu.B = result;
+
+
+
+            }},*/
     };
 public:
     void parity() {
@@ -305,8 +352,9 @@ public:
     bitset<16> incrementor_decrementor(bitset<16> input, bitset<8> controller){
         // Do not use WZ registers here, incrementor and decrementor circuit has its own dedicated registers as per the architecture to avoid overwrites.
         if (controller == 0b00000000){ // ADD 1
-            bitset<8> temp_w = (input.to_ullong() & 0xFF00) >> 8;
-            bitset<8> temp_z = (input.to_ullong() & 0x00FF);
+            uint16_t bin = input.to_ulong();
+            bitset<8> temp_w = (bin & 0xFF00) >> 8;
+            bitset<8> temp_z = (bin & 0x00FF);
             // add 1 to temp_z, adjust carry in temp_w, combine temp_w+temp_z to input and return;
             bitset<1> temp_carry = 0b0; // as implemented internally inside incrementor/decrementor, does not affect any flags.
             // deviates from hardware accuracy in favour of performance, we perform integer math and check if it exeeds 2^8, if yes then its a overflow and set carry to 1, return the value to temp_z anyway.
@@ -323,8 +371,9 @@ public:
             return bitset<16>((temp_w.to_ullong() << 8) | temp_z.to_ullong());
         }
         else if (controller == 0b00000011) {// SUB 1
-            bitset<8> temp_w = (input.to_ullong() & 0xFF00) >> 8;
-            bitset<8> temp_z = (input.to_ullong() & 0x00FF);
+            uint16_t bin = input.to_ulong();
+            bitset<8> temp_w = (bin & 0xFF00) >> 8;
+            bitset<8> temp_z = (bin & 0x00FF);
             bitset<1> temp_carry = 0b0;
             uint8_t z_val = temp_z.to_ulong();
             z_val--;
@@ -340,55 +389,38 @@ public:
         return 0b0;
     }
     void ALU(bitset<8> input, bitset<8> controller){// ALU ONLY TAKES VALUES AS INPUTS, ONLY VALUES.
-
-        // plans to optimize ALU using bit-manipulation, deviation from original architecture but wont be an issue accuracy wise.
-        if (controller == 0b00000000 || controller == 0b00000001){ //0 or 1
+        if (controller == 0b00000000 || controller == 0b00000001){ // ADD or ADC
             bitset<1> carryin = (controller == 0b00000001) ? flags[0] : 0;
+            bool carry_out = false;
             for (int i = 0; i <= 7; i++) {
-                if (A[i] == 0b0 && input[i] == 0b0 && (flags[0] == 0b0)) {
-                    A[i] = 0b0;
-                    if (carryin == 1) A[i] = 0b1;
-                    flags[0] = 0b0;
-                }
-                else if (A[i] == 0b0 && input[i] == 0b0 && (flags[0] == 0b1)) {
-                    A[i] = 0b1;
-                    flags[0] = 0b0;
-                }
-                else if ((A[i] == 0b0 && input[i] == 0b1 || A[i] == 0b1 && input[i] == 0b0) && (flags[0] == 0b0)) {
-                    A[i] = 0b1;
-                    flags[0] = 0b0;
-                }
-                else if ((A[i] == 0b0 && input[i] == 0b1 || A[i] == 0b1 && input[i] == 0b0) && (flags[0] == 0b1)) {
-                    A[i] = 0b0;
-                    flags[0] = 0b1;
-                    if (i == 3) flags[4] = 0b1; // Auxiliary Carry
-                }
-                else if (A[i] == 0b1 && input[i] == 0b1 && flags[0] == 0b0) {
-                    A[i] = 0b0;
-                    flags[0] = 0b1;
-                    if (i == 3) flags[4] = 0b1; // Auxiliary Carry
-                }
-                else if (A[i] == 0b1 && input[i] == 0b1 && flags[0] == 0b1) {
-                    A[i] = 0b1;
-                    flags[0] = 0b1;
-                    if (i == 3) flags[4] = 0b1;
-                }
-                if (i == 7 && A[7] == 0b1) flags[7] = 0b1;
-                else if (i == 7 && A[7] == 0b0) flags[7] = 0b0;
+                bool sum = A[i] ^ input[i] ^ carryin[0];
+                carry_out = (A[i] & input[i]) | (A[i] & carryin[0]) | (input[i] & carryin[0]);
+                A[i] = sum;
+                if (i == 7) flags[0] = carry_out;
+                if (i == 3 && carry_out) flags[4] = 0b1;
+                carryin[0] = carry_out;
             }
-            // Check for zero flag
+            flags[7] = A[7];
             if (A == 0b00000000) flags[6] = 0b1;
             else flags[6] = 0b0;
-            // Update parity flag
             parity();
         }
 
-        else if (controller == 0b00000011){//3 SUB/SUI
+        else if (controller == 0b00000011){// 3 : SUB/SUI
             // to substract stuff which is A = A - INPUT here, we take the 2s complement of INPUT and then perform ADD.
             input.flip();
             input = bitset<8>(input.to_ulong() + 1);
             ALU(input,0b00000000);
         }
+        else if (controller == 0b00000100) { // 4 : SBB
+            bool cain = flags[0];
+            ALU(input, 0b00000011);
+            if (cain) {
+                bitset<8> one(1);
+                ALU(one, 0b00000011);
+            }
+        }
+
     };
 
     void decode(bitset<8> opcode){
