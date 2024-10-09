@@ -233,7 +233,7 @@ private:
             {0b01110100, [](eightfive& cpu){ cpu.writeM(cpu.H);}},
             {0b01110101, [](eightfive& cpu){ cpu.writeM(cpu.L);}},
 
-            // ADD r(7 cases);
+            // ADD r/M(8 cases);
             {0b10000111, [](eightfive& cpu){ cpu.ALU(cpu.A,0b00000000);}},
             {0b10000000, [](eightfive& cpu){ cpu.ALU(cpu.B,0b00000000);}},
             {0b10000001, [](eightfive& cpu){ cpu.ALU(cpu.C,0b00000000);}},
@@ -243,7 +243,7 @@ private:
             {0b10000101, [](eightfive& cpu){ cpu.ALU(cpu.L,0b00000000);}},
             {0b10000110, [](eightfive& cpu){ cpu.ALU(cpu.loadM(),0b00000000);}},
 
-            // ADC r(7 cases);
+            // ADC r/M(8 cases);
             {0b10001111, [](eightfive& cpu){ cpu.ALU(cpu.A,0b00000001);}},
             {0b10001000, [](eightfive& cpu){ cpu.ALU(cpu.B,0b00000001);}},
             {0b10001001, [](eightfive& cpu){ cpu.ALU(cpu.C,0b00000001);}},
@@ -253,7 +253,7 @@ private:
             {0b10001101, [](eightfive& cpu){ cpu.ALU(cpu.L,0b00000001);}},
             {0b10001110, [](eightfive& cpu){ cpu.ALU(cpu.loadM(),0b00000001);}},
 
-            // SUB r(7 cases);
+            // SUB r/M(7 cases);
             {0b10010111, [](eightfive& cpu){ cpu.ALU(cpu.A,0b00000011);}},
             {0b10010000, [](eightfive& cpu){ cpu.ALU(cpu.B,0b00000011);}},
             {0b10010001, [](eightfive& cpu){ cpu.ALU(cpu.C,0b00000011);}},

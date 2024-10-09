@@ -22,6 +22,9 @@ iPort80 is a work-in-progress emulator that aims to accurately replicate the Int
 * First 16KB of memory is reserved for ROM, Emulator by design wont allow you to write in ROM so write only from 4000H.
 * Currently you need to manually tinker with the main function to read the output. Proper outputting to a text file is the next priority.
 * Refer to this [manual](Intel(R)%208085%20User%20Manual.pdf) for 8085's architectural information and information about instruction sets.
+
+## Features
+* Check [FEATURES.md](docs/FEATURES.md) for information about current supported instruction set and emulator specifics.
 ## How to use?
 Just specify your input.txt location when emulator asks for it.
 
