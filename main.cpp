@@ -162,6 +162,29 @@ public:
 
 private:
 private:
+    void inrins(bitset<8> &reg, eightfive &cpu, int flag){
+        uint8_t vin = reg.to_ulong();
+        uint8_t result = (flag == 0) ? (vin + 1) : (vin -1); // properly handles edge case of 255+1;
+        reg = result;
+        // update flags
+        // S(7) Z(6) x(5) AC(4) x(3) P(2) x(1) Cy(0)
+        // ZERO
+        (result == 0) ? cpu.flags[6] = 1 : cpu.flags[6] = 0;
+        // SIGN
+        (result & (1<<7)) ? cpu.flags[7] = 1 : cpu.flags[7] = 0;
+        // AUX CARRY
+        cpu.flags[4] = ((vin & 0x0F) == 0x0F) ? 1 : 0;
+        // PARITY
+        int parity = 0;
+        for (int i = 0; i < 8; i++) {
+            if (result & (1 << i)) {
+                parity++;
+            }
+        }
+        cpu.flags[2] = (parity % 2 == 0) ? 1 : 0;
+    }
+
+
     unordered_map<bitset<8>, function<void(eightfive&)>> optable = {
             // Handles all cases of MOV r,r;(49 cases)
             {0b01111111, [](eightfive& cpu){}},
@@ -330,16 +353,35 @@ private:
             // SBI d8
             {0xDE, [](eightfive& cpu){ cpu.ALU(cpu.Z,0x4);}},
 
-           /* // INR r //
-            {0x04, [](eightfive& cpu){
-                uint8_t vin = cpu.B.to_ulong();
-                uint8_t result = vin + 1; // properly handles edge case of 255+1;
-                cpu.B = result;
+            // INR r/M //
+            {0x3C, [](eightfive& cpu){cpu.inrins(cpu.A,cpu,0);}},
+            {0x04, [](eightfive& cpu){cpu.inrins(cpu.B,cpu,0);}},
+            {0x0C, [](eightfive& cpu){cpu.inrins(cpu.C,cpu,0);}},
+            {0x14, [](eightfive& cpu){cpu.inrins(cpu.D,cpu,0);}},
+            {0x1C, [](eightfive& cpu){cpu.inrins(cpu.E,cpu,0);}},
+            {0x24, [](eightfive& cpu){cpu.inrins(cpu.H,cpu,0);}},
+            {0x2C, [](eightfive& cpu){cpu.inrins(cpu.L,cpu,0);}},
+            {0x34, [](eightfive& cpu){bitset<8> value = cpu.loadM();cpu.inrins(value,cpu,0); cpu.writeM(value);}},
+
+            // DCR r/M //
+            {0x3D, [](eightfive& cpu){cpu.inrins(cpu.A,cpu,1);}},
+            {0x05, [](eightfive& cpu){cpu.inrins(cpu.B,cpu,1);}},
+            {0x0D, [](eightfive& cpu){cpu.inrins(cpu.C,cpu,1);}},
+            {0x15, [](eightfive& cpu){cpu.inrins(cpu.D,cpu,1);}},
+            {0x1D, [](eightfive& cpu){cpu.inrins(cpu.E,cpu,1);}},
+            {0x25, [](eightfive& cpu){cpu.inrins(cpu.H,cpu,1);}},
+            {0x2D, [](eightfive& cpu){cpu.inrins(cpu.L,cpu,1);}},
+            {0x3D, [](eightfive& cpu){cpu.inrins(cpu.A,cpu,1);}},
+            {0x35, [](eightfive& cpu){bitset<8> value = cpu.loadM();cpu.inrins(value,cpu,1); cpu.writeM(value);}},
 
 
 
-            }},*/
+
     };
+
+
+
+
 public:
     void parity() {
         bool parity = 0;
@@ -531,6 +573,6 @@ int main() {
     eightfive cpu;
     resetCPU(cpu);
     mainloop(cpu);
-    cout << cpu.H << cpu.L;
+    cout << cpu.loadM();
     return 0;
 }
