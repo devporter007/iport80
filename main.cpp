@@ -16,11 +16,13 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-
-#include <bits/stdc++.h>
+#include <array>
+#include <cstdint>
+#include <unordered_map>
 #include <fstream>
 #include <string>
 #include <regex>
+#include <iostream>
 using namespace std;
 // aims to replicate arch design of 8085 exactly.
 // memory specifications: 64k RAM+ROM(8bit);
