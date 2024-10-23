@@ -140,7 +140,6 @@ public:
     // things works in 8085 internally, they are implemented as a register pair and used thereof like that.
     // To ease of things a bit we are instead going for a direct 16 bit approach, it should not affect the
     // actual results from this emulated processor.
-    stack<bitset<16>> mainstack;
     bitset<16> stackPointer;
     bitset<16> programCounter;
     eightfive() {
@@ -159,10 +158,127 @@ public:
     void writeM(bitset<8> data){
         bitset<16> address = (static_cast<unsigned long long>(H.to_ulong()) << 8) | L.to_ulong();
         memory.write(address, data);
-        return;
+    }
+    void parity() {
+        bool parity = 0;
+        for (int j = 0; j < 8; j++) {
+            parity ^= A[j];
+        }
+        flags[2] = (parity == 0);
     }
 
-private:
+    bitset<16> incrementor_decrementor(bitset<16> input, bitset<8> controller){
+        // Do not use WZ registers here, incrementor and decrementor circuit has its own dedicated registers as per the architecture to avoid overwrites.
+        if (controller == 0b00000000){ // ADD 1
+            uint16_t bin = input.to_ulong();
+            bitset<8> temp_w = (bin & 0xFF00) >> 8;
+            bitset<8> temp_z = (bin & 0x00FF);
+            // add 1 to temp_z, adjust carry in temp_w, combine temp_w+temp_z to input and return;
+            bitset<1> temp_carry; // as implemented internally inside incrementor/decrementor, does not affect any flags.
+            // deviates from hardware accuracy in favour of performance, we perform integer math and check if it exeeds 2^8, if yes then its a overflow and set carry to 1, return the value to temp_z anyway.
+            uint8_t z_val = temp_z.to_ulong();
+            z_val++;
+            temp_carry = (z_val == 0) ? 1 : 0;
+            temp_z = bitset<8>(z_val);
+
+            if (temp_carry == 1) {// adds carry to 1 in case of lower byte overflow, applies same logic from above.
+                uint8_t w_val = temp_w.to_ulong();
+                w_val++;
+                temp_w = bitset<8>(w_val);
+            }
+            return bitset<16>((temp_w.to_ullong() << 8) | temp_z.to_ullong());
+        }
+        else if (controller == 0b00000011) {// SUB 1
+            uint16_t bin = input.to_ulong();
+            bitset<8> temp_w = (bin & 0xFF00) >> 8;
+            bitset<8> temp_z = (bin & 0x00FF);
+            bitset<1> temp_carry;
+            uint8_t z_val = temp_z.to_ulong();
+            z_val--;
+            temp_carry = (z_val == 255) ? 1 : 0;
+            temp_z = bitset<8>(z_val);
+            if (temp_carry == 1) {// adds carry to 1 in case of lower byte overflow, applies same logic from above.
+                uint8_t w_val = temp_w.to_ulong();
+                w_val--;
+                temp_w = bitset<8>(w_val);
+            }
+            return bitset<16>((temp_w.to_ullong() << 8) | temp_z.to_ullong());
+        }
+        return 0b0;
+    }
+    void ALU(bitset<8> input, bitset<8> controller){// ALU ONLY TAKES VALUES AS INPUTS, ONLY VALUES.
+        if (controller == 0b00000000 || controller == 0b00000001){ // ADD or ADC
+            bitset<1> carryin = (controller == 0b00000001) ? flags[0] : 0;
+            bool carry_out = false;
+            for (int i = 0; i <= 7; i++) {
+                bool sum = A[i] ^ input[i] ^ carryin[0];
+                carry_out = (A[i] & input[i]) | (A[i] & carryin[0]) | (input[i] & carryin[0]);
+                A[i] = sum;
+                if (i == 7) flags[0] = carry_out;
+                if (i == 3 && carry_out) flags[4] = 0b1;
+                carryin[0] = carry_out;
+            }
+            flags[7] = A[7];
+            if (A == 0b00000000) flags[6] = 0b1;
+            else flags[6] = 0b0;
+            parity();
+        }
+
+        else if (controller == 0b00000011){// 3 : SUB/SUI
+            // to substract stuff which is A = A - INPUT here, we take the 2s complement of INPUT and then perform ADD.
+            input.flip();
+            input = bitset<8>(input.to_ulong() + 1);
+            ALU(input,0b00000000);
+        }
+        else if (controller == 0b00000100) { // 4 : SBB
+            bool cain = flags[0];
+            ALU(input, 0b00000011);
+            if (cain) {
+                bitset<8> one(1);
+                ALU(one, 0b00000011);
+            }
+        }
+
+    };
+
+    void decode(bitset<8> opcode){
+        vector<uint8_t> opcontrol = instructionHandler.retrieve_instruction(opcode.to_ulong());
+        uint8_t opsize = opcontrol[0];
+        auto opcheck = optable.find(opcode);
+        if (opcheck != optable.end()){
+            if (opsize == 1){
+                programCounter = incrementor_decrementor(programCounter,0x0);
+            }
+            else if (opsize == 2){
+                programCounter = incrementor_decrementor(programCounter,0x0);
+                Z = memory.read(programCounter); // fetched second byte and stored in Z;
+                programCounter = incrementor_decrementor(programCounter,0x0);
+            }
+            else if (opsize == 3){
+                programCounter = incrementor_decrementor(programCounter,0x0);
+                Z = memory.read(programCounter); // lower byte instruction fetched first to comply with 8085 arch.
+                programCounter = incrementor_decrementor(programCounter,0x0);
+                W = memory.read(programCounter); // higher byte instruction fetch second to comply with 8085 arch.
+                programCounter = incrementor_decrementor(programCounter,0x0);
+            }
+        }
+    }
+    void executor(bitset<8> opcode) {
+        auto opcheck = optable.find(opcode);
+        if (opcheck != optable.end()) {
+            opcheck->second(*this);
+        }
+    }
+
+    void InstructionCycle(){
+        while(true){// HLT
+            bitset<8> opcode = memory.read(programCounter);
+            if(opcode == 0b01110110) break;
+            decode(opcode);
+            executor(opcode);
+        }
+    }
+
 private:
     void inrins(bitset<8> &reg, eightfive &cpu, int flag){
         uint8_t vin = reg.to_ulong();
@@ -375,135 +491,8 @@ private:
             {0x2D, [](eightfive& cpu){cpu.inrins(cpu.L,cpu,1);}},
             {0x3D, [](eightfive& cpu){cpu.inrins(cpu.A,cpu,1);}},
             {0x35, [](eightfive& cpu){bitset<8> value = cpu.loadM();cpu.inrins(value,cpu,1); cpu.writeM(value);}},
-
-
-
-
     };
 
-
-
-
-public:
-    void parity() {
-        bool parity = 0;
-        for (int j = 0; j < 8; j++) {
-            parity ^= A[j];
-        }
-        flags[2] = (parity == 0);
-    }
-
-    bitset<16> incrementor_decrementor(bitset<16> input, bitset<8> controller){
-        // Do not use WZ registers here, incrementor and decrementor circuit has its own dedicated registers as per the architecture to avoid overwrites.
-        if (controller == 0b00000000){ // ADD 1
-            uint16_t bin = input.to_ulong();
-            bitset<8> temp_w = (bin & 0xFF00) >> 8;
-            bitset<8> temp_z = (bin & 0x00FF);
-            // add 1 to temp_z, adjust carry in temp_w, combine temp_w+temp_z to input and return;
-            bitset<1> temp_carry = 0b0; // as implemented internally inside incrementor/decrementor, does not affect any flags.
-            // deviates from hardware accuracy in favour of performance, we perform integer math and check if it exeeds 2^8, if yes then its a overflow and set carry to 1, return the value to temp_z anyway.
-            uint8_t z_val = temp_z.to_ulong();
-            z_val++;
-            temp_carry = (z_val == 0) ? 1 : 0;
-            temp_z = bitset<8>(z_val);
-
-            if (temp_carry == 1) {// adds carry to 1 in case of lower byte overflow, applies same logic from above.
-                uint8_t w_val = temp_w.to_ulong();
-                w_val++;
-                temp_w = bitset<8>(w_val);
-            }
-            return bitset<16>((temp_w.to_ullong() << 8) | temp_z.to_ullong());
-        }
-        else if (controller == 0b00000011) {// SUB 1
-            uint16_t bin = input.to_ulong();
-            bitset<8> temp_w = (bin & 0xFF00) >> 8;
-            bitset<8> temp_z = (bin & 0x00FF);
-            bitset<1> temp_carry = 0b0;
-            uint8_t z_val = temp_z.to_ulong();
-            z_val--;
-            temp_carry = (z_val == 255) ? 1 : 0;
-            temp_z = bitset<8>(z_val);
-            if (temp_carry == 1) {// adds carry to 1 in case of lower byte overflow, applies same logic from above.
-                uint8_t w_val = temp_w.to_ulong();
-                w_val--;
-                temp_w = bitset<8>(w_val);
-            }
-            return bitset<16>((temp_w.to_ullong() << 8) | temp_z.to_ullong());
-        }
-        return 0b0;
-    }
-    void ALU(bitset<8> input, bitset<8> controller){// ALU ONLY TAKES VALUES AS INPUTS, ONLY VALUES.
-        if (controller == 0b00000000 || controller == 0b00000001){ // ADD or ADC
-            bitset<1> carryin = (controller == 0b00000001) ? flags[0] : 0;
-            bool carry_out = false;
-            for (int i = 0; i <= 7; i++) {
-                bool sum = A[i] ^ input[i] ^ carryin[0];
-                carry_out = (A[i] & input[i]) | (A[i] & carryin[0]) | (input[i] & carryin[0]);
-                A[i] = sum;
-                if (i == 7) flags[0] = carry_out;
-                if (i == 3 && carry_out) flags[4] = 0b1;
-                carryin[0] = carry_out;
-            }
-            flags[7] = A[7];
-            if (A == 0b00000000) flags[6] = 0b1;
-            else flags[6] = 0b0;
-            parity();
-        }
-
-        else if (controller == 0b00000011){// 3 : SUB/SUI
-            // to substract stuff which is A = A - INPUT here, we take the 2s complement of INPUT and then perform ADD.
-            input.flip();
-            input = bitset<8>(input.to_ulong() + 1);
-            ALU(input,0b00000000);
-        }
-        else if (controller == 0b00000100) { // 4 : SBB
-            bool cain = flags[0];
-            ALU(input, 0b00000011);
-            if (cain) {
-                bitset<8> one(1);
-                ALU(one, 0b00000011);
-            }
-        }
-
-    };
-
-    void decode(bitset<8> opcode){
-        vector<uint8_t> opcontrol = instructionHandler.retrieve_instruction(opcode.to_ulong());
-        uint8_t opsize = opcontrol[0];
-        auto opcheck = optable.find(opcode);
-        if (opcheck != optable.end()){
-            if (opsize == 1){
-                programCounter = incrementor_decrementor(programCounter,0x0);
-            }
-            else if (opsize == 2){
-                programCounter = incrementor_decrementor(programCounter,0x0);
-                Z = memory.read(programCounter); // fetched second byte and stored in Z;
-                programCounter = incrementor_decrementor(programCounter,0x0);
-            }
-            else if (opsize == 3){
-                programCounter = incrementor_decrementor(programCounter,0x0);
-                Z = memory.read(programCounter); // lower byte instruction fetched first to comply with 8085 arch.
-                programCounter = incrementor_decrementor(programCounter,0x0);
-                W = memory.read(programCounter); // higher byte instruction fetch second to comply with 8085 arch.
-                programCounter = incrementor_decrementor(programCounter,0x0);
-            }
-        }
-    }
-    void executor(bitset<8> opcode) {
-        auto opcheck = optable.find(opcode);
-        if (opcheck != optable.end()) {
-            opcheck->second(*this);
-        }
-    }
-
-    void InstructionCycle(){
-        while(true){// HLT
-            bitset<8> opcode = memory.read(programCounter);
-            if(opcode == 0b01110110) break;
-            decode(opcode);
-            executor(opcode);
-        }
-    }
 };
 
 void resetCPU(eightfive &cpu){
@@ -575,6 +564,6 @@ int main() {
     eightfive cpu;
     resetCPU(cpu);
     mainloop(cpu);
-    cout << cpu.loadM();
+    cout << cpu.A;
     return 0;
 }
