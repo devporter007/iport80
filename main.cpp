@@ -32,7 +32,6 @@ using namespace std;
 // There are some places where i have intentionally decided to deviate from 8085 internal implementations in favour of major performance benefits.
 
 class InstructionHandler{
-private:
     unordered_map<uint8_t, vector<uint8_t>> instructionInfo;
 public:
     InstructionHandler(){
@@ -104,16 +103,13 @@ public:
         if (it != instructionInfo.end()) {
             return it->second;
         }
-        else{
-            return {0,0,0,0};
-        }
+        return {0,0,0,0};
     }
 
 };
 
 
 class mem {
-private:
     array<bitset<8>, 65536> memory;
     bitset<16> rom_end_address;
 public:
@@ -130,10 +126,10 @@ public:
     }
 };
 class eightfive{
-private:
     InstructionHandler instructionHandler;
 public:
     mem memory;
+    int cycleCount = 0;
     bitset<8> A,B,C,D,E,H,L,M,W,Z;
     bitset<8> flags; // S(7) Z(6) x(5) AC(4) x(3) P(2) x(1) Cy(0)
     // PC and MS are implemented as 16 bit bitset which deviates from the accurate representation of how
@@ -244,6 +240,7 @@ public:
     void decode(bitset<8> opcode){
         vector<uint8_t> opcontrol = instructionHandler.retrieve_instruction(opcode.to_ulong());
         uint8_t opsize = opcontrol[0];
+
         auto opcheck = optable.find(opcode);
         if (opcheck != optable.end()){
             if (opsize == 1){
@@ -273,6 +270,7 @@ public:
     void InstructionCycle(){
         while(true){// HLT
             bitset<8> opcode = memory.read(programCounter);
+            vector<uint8_t> opcontrol = instructionHandler.retrieve_instruction(opcode.to_ulong());
             if(opcode == 0b01110110) break;
             decode(opcode);
             executor(opcode);
@@ -520,6 +518,7 @@ void mainloop(eightfive &cpu) {
                     current_address = cpu.incrementor_decrementor(current_address, 0x0).to_ulong();
                 } catch (const std::exception& e) {
                     cerr << "Error processing data line: " << line << endl;
+                    cerr << e.what() << endl;
                     return;
                 }
             }
@@ -547,6 +546,7 @@ void mainloop(eightfive &cpu) {
                     current_address = cpu.incrementor_decrementor(current_address, 0x0).to_ulong();
                 } catch (const std::exception& e) {
                     cerr << "Error processing instruction line: " << line << endl;
+                    cerr << e.what() << endl;
                     return;
                 }
             }
@@ -564,6 +564,7 @@ int main() {
     eightfive cpu;
     resetCPU(cpu);
     mainloop(cpu);
-    cout << cpu.A;
+    cout << cpu.H << cpu.L <<endl;
+    cout << cpu.cycleCount << endl;
     return 0;
 }
